@@ -68,6 +68,23 @@ Complete build scripts and config for a MagicMirror² smart mirror kiosk.
 systemctl --user restart magicmirror  # restart
 ```
 
+## Future Ideas
+
+### Second Mirror via Chromecast
+
+A Chromecast can display the MagicMirror page on any TV or monitor without a second Pi.
+
+**Standard Chromecast dongle** — needs something to initiate the cast. Run `catt` from the MagicMirror Pi itself:
+
+```bash
+pip install catt
+catt -d "Living Room TV" cast_site http://192.168.20.86:8080/
+```
+
+Add to a startup script so it casts on boot. Downside: if the cast drops, it needs to be re-initiated.
+
+**Chromecast with Google TV** — runs Android TV, so you can sideload a kiosk browser app and point it at the mirror URL directly. No initiator needed, self-recovering.
+
 ## Files
 
 ```
