@@ -85,6 +85,16 @@ Add to a startup script so it casts on boot. Downside: if the cast drops, it nee
 
 **Chromecast with Google TV** — runs Android TV, so you can sideload a kiosk browser app and point it at the mirror URL directly. No initiator needed, self-recovering.
 
+### SmartLife T&H Sensor Integration
+
+A SmartLife temperature & humidity sensor (SmartLife is Tuya-based, so `tuyapi` works) could feed real local readings into the weather module.
+
+- Fetch temp + humidity from the sensor via local Tuya protocol (`tuyapi` npm package)
+- Fall back to the existing weather provider (OpenWeatherMap etc.) if the sensor is offline
+- External provider still handles everything else: conditions, forecast, wind, UV
+
+Would be a new custom module `MMM-SmartLifeTH`. Needs device ID and local key from the Tuya IoT developer portal.
+
 ## Files
 
 ```
