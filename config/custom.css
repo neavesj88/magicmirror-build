@@ -1,0 +1,16 @@
+/* Portrait rotation — 90° clockwise
+ * If upside down: change rotate(90deg) → rotate(-90deg)
+ * transform-origin: bottom left → top left
+ * top: -100vw → top: 100vh
+ */
+body {
+	margin: 0;
+	position: absolute;
+	transform: rotate(90deg);
+	transform-origin: bottom left;
+	width: 100vh;
+	height: 100vw;
+	object-fit: cover;
+	top: -100vw;
+	visibility: visible;
+}
