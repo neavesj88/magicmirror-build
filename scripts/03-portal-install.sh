@@ -27,7 +27,16 @@ const url = require("url");
 const os = require("os");
 
 const PORT = 8081;
-const WIFI_IFACE = "wlp2s0";
+
+// Interface name is firmware/kernel dependent — detect it, fall back to the known one
+const WIFI_IFACE = (() => {
+	try {
+		const out = execSync("nmcli -t -f DEVICE,TYPE device status").toString();
+		const line = out.split("\n").find(l => l.trim().endsWith(":wifi"));
+		if (line) return line.split(":")[0];
+	} catch (e) {}
+	return "wlp2s0";
+})();
 
 function getIP() {
 	try {
@@ -204,7 +213,8 @@ divider "WIFI WATCHDOG"
 
 cat > "$PORTAL_DIR/watchdog.sh" << 'WATCHEOF'
 #!/bin/bash
-WIFI_IFACE="wlp2s0"
+WIFI_IFACE="$(nmcli -t -f DEVICE,TYPE device status 2>/dev/null | grep ':wifi$' | head -1 | cut -d: -f1)"
+WIFI_IFACE="${WIFI_IFACE:-wlp2s0}"
 HOTSPOT_SSID="MirrorSetup"
 HOTSPOT_PASS="mirror123"
 CHECK_INTERVAL=30
@@ -279,9 +289,12 @@ systemctl --user enable mm-portal.service mm-wifi-watchdog.service
 systemctl --user start mm-portal.service mm-wifi-watchdog.service
 ok "Portal and watchdog enabled and started"
 
+HOST="$(hostname).local"
+
 divider "PORTAL INSTALL COMPLETE"
 echo ""
-echo "  Config portal:  http://192.168.20.86:8081"
-echo "  Remote Control: http://192.168.20.86:8080/remote.html"
+echo "  Config portal:  http://${HOST}:8081"
+echo "  Remote Control: http://${HOST}:8080/remote.html"
+echo "  SSH:            ssh $(whoami)@${HOST}"
 echo "  WiFi hotspot:   MirrorSetup (pass: mirror123) → http://192.168.4.1:8081"
 echo ""
