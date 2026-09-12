@@ -109,18 +109,25 @@ module.exports = NodeHelper.create({
 					});
 			});
 
-			// Trip title is a nicety; a failure here must not blank the map.
-			var tripTitle = null;
+			// Trip title and the invite copy are niceties; a failure here must
+			// not blank the map. The copy is whatever he has set for the site's
+			// own popup, so the mirror and the website stay in step.
+			var tripTitle = null, invite = null;
 			try {
 				var curRes = await fetch(config.currentUrl, { signal: AbortSignal.timeout(10000) });
-				if (curRes.ok) tripTitle = (await curRes.json()).tripTitle || null;
-			} catch (e) { /* leave it null */ }
+				if (curRes.ok) {
+					var cur = await curRes.json();
+					tripTitle = cur.tripTitle || null;
+					invite = cur.body || null;
+				}
+			} catch (e) { /* leave them null */ }
 
 			var rings = stops.length ? await this.getRings(config.atlasUrl) : [];
 
 			this.sendSocketNotification("WALLY_DATA", {
 				travelling: stops.length > 0,
 				tripTitle: tripTitle,
+				invite: invite,
 				stops: stops,
 				legs: legs,
 				rings: rings,

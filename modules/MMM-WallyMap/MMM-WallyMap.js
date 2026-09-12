@@ -2,7 +2,15 @@
  * on neaves.au. Country outlines, the route so far, and where he is now.
  *
  * Hides itself when there is no published trip, so the slot goes back to
- * whatever sits below it for the ~50 weeks a year he is at home. */
+ * whatever sits below it for the ~50 weeks a year he is at home.
+ *
+ * When the trip includes a flight the route is too big to read at one zoom, so
+ * it alternates between the whole journey and a close view of where he is.
+ * Each view is drawn once into its own canvas and the two are faded between —
+ * one fully out before the next comes in, so they are never both on screen.
+ * The mirror is a Celeron N3350 compositing a 90-degree-rotated page, where an
+ * animated zoom would mean re-projecting 15,000 coastline points every frame;
+ * fading pre-drawn canvases costs nothing per frame by comparison. */
 Module.register("MMM-WallyMap", {
 	defaults: {
 		updateInterval: 15 * 60 * 1000,
@@ -13,11 +21,23 @@ Module.register("MMM-WallyMap", {
 		height: 420,
 		// Smallest view in degrees, so one stop does not zoom to street level.
 		minSpanDeg: 8,
+		// Degrees across the close view of the current location.
+		closeSpanDeg: 11,
 		// Fraction of the frame the route fills. Below 1 leaves surrounding
 		// country around it, which is what makes the wireframe read as a map
 		// rather than a few abstract lines.
 		routeFill: 0.6,
+		// How long each view sits before it swaps, and the fade either side.
+		// Held to a 10s floor in startCycle — faster than that on a bathroom
+		// mirror reads as flicker rather than a transition.
+		viewHoldMs: 12000,
+		fadeMs: 900,
 		showTrail: true,
+		// Nudge whoever is brushing their teeth towards the travel blog. The
+		// wording comes from the site's own popup copy; this is just the URL to
+		// print under it.
+		showInvite: true,
+		siteUrl: "neaves.au/wally",
 		animationSpeed: 1000,
 	},
 
@@ -26,11 +46,15 @@ Module.register("MMM-WallyMap", {
 	start: function () {
 		this.travelling = false;
 		this.tripTitle = null;
+		this.invite = null;
 		this.stops = [];
 		this.legs = [];
 		this.rings = [];
 		this.loaded = false;
 		this.error = null;
+		this.viewTimer = null;
+		this.canvases = [];
+		this.viewIndex = 0;
 		this.getData();
 		setInterval(() => this.getData(), this.config.updateInterval);
 	},
@@ -47,6 +71,7 @@ Module.register("MMM-WallyMap", {
 		if (notification === "WALLY_DATA") {
 			this.travelling = payload.travelling;
 			this.tripTitle = payload.tripTitle;
+			this.invite = payload.invite;
 			this.stops = payload.stops || [];
 			this.legs = payload.legs || [];
 			this.rings = payload.rings || [];
@@ -62,6 +87,10 @@ Module.register("MMM-WallyMap", {
 			this.updateDom(this.config.animationSpeed);
 		}
 	},
+
+	/** MagicMirror calls these when the module is hidden or shown again. */
+	suspend: function () { this.stopCycle(); },
+	resume: function () { if (this.canvases.length > 1) this.startCycle(); },
 
 	getHeader: function () {
 		if (this.travelling && this.tripTitle) return this.tripTitle;
@@ -79,7 +108,29 @@ Module.register("MMM-WallyMap", {
 		return "rgba(255,255,255,0.7)";
 	},
 
+	/** Every point the wide view has to contain. */
+	routePoints: function () {
+		var pts = this.stops.map(function (s) { return { lat: s.lat, lng: s.lng }; });
+		this.legs.forEach(function (l) {
+			pts.push({ lat: l.fromLat, lng: l.fromLng });
+			pts.push({ lat: l.toLat, lng: l.toLng });
+		});
+		return pts;
+	},
+
+	/**
+	 * A flight makes the journey span far more than the current city, so the two
+	 * zooms show genuinely different things and are worth alternating. Without
+	 * one the wide view is already local and a second view would just repeat it.
+	 */
+	wantsTwoViews: function () {
+		return this.stops.length > 1 && this.legs.some(function (l) { return l.mode === "plane"; });
+	},
+
 	getDom: function () {
+		this.stopCycle();
+		this.canvases = [];
+
 		var wrapper = document.createElement("div");
 		wrapper.className = "wallymap-wrapper";
 
@@ -92,18 +143,36 @@ Module.register("MMM-WallyMap", {
 			return wrapper;
 		}
 		if (!this.travelling) {
-			// Hidden anyway; return something harmless rather than nothing.
 			wrapper.innerHTML = "";
 			return wrapper;
 		}
 
-		var canvas = document.createElement("canvas");
-		canvas.width = this.config.width;
-		canvas.height = this.config.height;
-		canvas.className = "wallymap-canvas";
-		wrapper.appendChild(canvas);
-
 		var here = this.stops[this.stops.length - 1];
+
+		// One canvas per view, stacked; only ever one of them is opaque.
+		var views = [{ points: this.routePoints(), minSpan: this.config.minSpanDeg }];
+		if (this.wantsTwoViews() && here) {
+			views.push({ points: [{ lat: here.lat, lng: here.lng }], minSpan: this.config.closeSpanDeg });
+		}
+
+		var stage = document.createElement("div");
+		stage.className = "wallymap-stage";
+		stage.style.width = this.config.width + "px";
+		stage.style.height = this.config.height + "px";
+
+		var self = this;
+		views.forEach(function (view, i) {
+			var canvas = document.createElement("canvas");
+			canvas.width = self.config.width;
+			canvas.height = self.config.height;
+			canvas.className = "wallymap-canvas";
+			canvas.style.transition = "opacity " + self.config.fadeMs + "ms ease-in-out";
+			canvas.style.opacity = i === 0 ? "1" : "0";
+			stage.appendChild(canvas);
+			self.canvases.push({ el: canvas, view: view });
+		});
+		wrapper.appendChild(stage);
+
 		if (here) {
 			var label = document.createElement("div");
 			label.className = "wallymap-here";
@@ -121,9 +190,50 @@ Module.register("MMM-WallyMap", {
 			wrapper.appendChild(label);
 		}
 
-		var self = this;
-		setTimeout(function () { self.drawMap(canvas); }, 100);
+		if (this.config.showInvite) {
+			var invite = document.createElement("div");
+			invite.className = "wallymap-invite";
+			if (this.invite) {
+				var teaser = document.createElement("span");
+				teaser.className = "wallymap-teaser";
+				teaser.textContent = this.invite;
+				invite.appendChild(teaser);
+			}
+			var url = document.createElement("span");
+			url.className = "wallymap-url";
+			url.textContent = this.config.siteUrl;
+			invite.appendChild(url);
+			wrapper.appendChild(invite);
+		}
+
+		// Canvases have no size until they are in the document.
+		setTimeout(function () {
+			self.viewIndex = 0;
+			self.canvases.forEach(function (c) { self.drawView(c.el, c.view); });
+			if (self.canvases.length > 1) self.startCycle();
+		}, 100);
+
 		return wrapper;
+	},
+
+	startCycle: function () {
+		this.stopCycle();
+		var self = this;
+		// Hold, then fade out, then fade the next one in — never both at once.
+		this.viewTimer = setInterval(function () {
+			if (self.canvases.length < 2) return;
+			var current = self.canvases[self.viewIndex];
+			var next = (self.viewIndex + 1) % self.canvases.length;
+			current.el.style.opacity = "0";
+			setTimeout(function () {
+				self.viewIndex = next;
+				self.canvases[next].el.style.opacity = "1";
+			}, self.config.fadeMs);
+		}, Math.max(10000, this.config.viewHoldMs) + this.config.fadeMs * 2);
+	},
+
+	stopCycle: function () {
+		if (this.viewTimer) { clearInterval(this.viewTimer); this.viewTimer = null; }
 	},
 
 	sinceText: function (arrivedAt) {
@@ -136,14 +246,10 @@ Module.register("MMM-WallyMap", {
 	},
 
 	/** Equirectangular, x compressed by cos(mid latitude) so shapes stay sane. */
-	buildProjection: function (w, h) {
+	buildProjection: function (w, h, points, minSpan) {
 		var pad = 14;
-		var lats = this.stops.map(function (s) { return s.lat; });
-		var lngs = this.stops.map(function (s) { return s.lng; });
-		this.legs.forEach(function (l) {
-			lats.push(l.fromLat, l.toLat);
-			lngs.push(l.fromLng, l.toLng);
-		});
+		var lats = points.map(function (p) { return p.lat; });
+		var lngs = points.map(function (p) { return p.lng; });
 
 		var latMin = Math.min.apply(null, lats), latMax = Math.max.apply(null, lats);
 		var lngMin = Math.min.apply(null, lngs), lngMax = Math.max.apply(null, lngs);
@@ -155,8 +261,8 @@ Module.register("MMM-WallyMap", {
 
 		var x0 = toX(lngMin), x1 = toX(lngMax);
 		var y0 = toY(latMax), y1 = toY(latMin);
-		var spanX = Math.max(x1 - x0, this.config.minSpanDeg * kx);
-		var spanY = Math.max(y1 - y0, this.config.minSpanDeg);
+		var spanX = Math.max(x1 - x0, minSpan * kx);
+		var spanY = Math.max(y1 - y0, minSpan);
 		var cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
 
 		var scale = Math.min((w - pad * 2) / spanX, (h - pad * 2) / spanY) * this.config.routeFill;
@@ -169,11 +275,11 @@ Module.register("MMM-WallyMap", {
 		};
 	},
 
-	drawMap: function (canvas) {
+	drawView: function (canvas, view) {
 		var ctx = canvas.getContext("2d");
 		var w = canvas.width, h = canvas.height;
 		ctx.clearRect(0, 0, w, h);
-		if (!this.stops.length) return;
+		if (!this.stops.length || !view.points.length) return;
 
 		var rgb = this.getGlobalColor().match(/(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/);
 		var r = rgb ? parseInt(rgb[1]) : 255;
@@ -181,7 +287,7 @@ Module.register("MMM-WallyMap", {
 		var b = rgb ? parseInt(rgb[3]) : 255;
 		var col = function (a) { return "rgba(" + r + "," + g + "," + b + "," + a + ")"; };
 
-		var project = this.buildProjection(w, h);
+		var project = this.buildProjection(w, h, view.points, view.minSpan);
 
 		// Coastlines and borders, kept faint so the route reads on top of them.
 		// A ring that crosses the antimeridian comes back with a 360-degree jump
