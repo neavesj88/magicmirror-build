@@ -35,10 +35,21 @@ Module.register("MMM-WallyMap", {
 		// country around it, which is what makes the wireframe read as a map
 		// rather than a few abstract lines.
 		routeFill: 0.6,
+		// Country outlines alone leave a local frame nearly empty, so below this
+		// span the view also gets rivers and nearby cities.
+		detailBelowDeg: 12,
+		minPlacePopulation: 50000,
+		maxPlaceLabels: 6,
+		// Name the first and last stop on the map itself.
+		showEndpointLabels: true,
 		// A zoomed view loses all sense of where in the world it is, so once the
 		// main view is tighter than this it gets a continent-scale inset.
 		minimapBelowDeg: 25,
-		minimapSpanDeg: 55,
+		// Fitted to the inset's short side, so this is the vertical reach: 28
+		// centred on central Europe runs roughly Mediterranean to Scandinavia,
+		// about 50 degrees wide. Wider than this and it starts showing Africa,
+		// which costs the recognisable shape without adding anything.
+		minimapSpanDeg: 28,
 		minimapWidth: 116,
 		minimapHeight: 94,
 		minimapMargin: 10,
@@ -72,6 +83,8 @@ Module.register("MMM-WallyMap", {
 		this.stops = [];
 		this.legs = [];
 		this.rings = [];
+		this.coast = [];
+		this.detail = null;
 		this.loaded = false;
 		this.error = null;
 		this.viewTimer = null;
@@ -89,6 +102,8 @@ Module.register("MMM-WallyMap", {
 			currentUrl: this.config.currentUrl,
 			atlasUrl: this.config.atlasUrl,
 			testMode: this.config.testMode,
+			detailBelowDeg: this.config.detailBelowDeg,
+			minPlacePopulation: this.config.minPlacePopulation,
 		});
 	},
 
@@ -101,6 +116,8 @@ Module.register("MMM-WallyMap", {
 			this.stops = payload.stops || [];
 			this.legs = payload.legs || [];
 			this.rings = payload.rings || [];
+			this.coast = payload.coast || [];
+			this.detail = payload.detail || null;
 			this.error = null;
 			this.loaded = true;
 			// Nothing published means he is home - give the space back.
@@ -370,8 +387,8 @@ Module.register("MMM-WallyMap", {
 	 * 360-degree jump in longitude; drawn naively that streaks a line across the
 	 * whole map, so the path is broken wherever a segment jumps implausibly far.
 	 */
-	strokeRings: function (ctx, project) {
-		this.rings.forEach(function (ring) {
+	strokeRings: function (ctx, project, rings) {
+		(rings || this.rings).forEach(function (ring) {
 			if (ring.length < 2) return;
 			ctx.beginPath();
 			var pen = false;
@@ -414,9 +431,12 @@ Module.register("MMM-WallyMap", {
 		// Opaque backdrop, otherwise the main map shows through the inset.
 		ctx.fillStyle = "rgba(0,0,0,0.78)";
 		ctx.fillRect(x0, y0, mw, mh);
+		/* Coastlines only. Drawing every country outline here made the inset an
+		 * unreadable thicket of borders; the land/sea edge alone is enough to
+		 * recognise Europe at a glance and put the ping in context. */
 		ctx.lineWidth = 1;
-		ctx.strokeStyle = col(0.34);
-		this.strokeRings(ctx, project);
+		ctx.strokeStyle = col(0.38);
+		this.strokeRings(ctx, project, this.coast && this.coast.length ? this.coast : this.rings);
 		ctx.restore();
 
 		// Frame and pointer outside the clip so they stay crisp.
@@ -436,6 +456,76 @@ Module.register("MMM-WallyMap", {
 		ctx.stroke();
 	},
 
+	/**
+	 * Rivers and nearby cities, for a view zoomed in far enough that borders
+	 * alone leave it empty. Rivers first so city dots sit on top of them.
+	 */
+	drawDetail: function (ctx, project, col) {
+		if (!this.detail) return;
+
+		var stroke = function (lines, alpha) {
+			ctx.strokeStyle = col(alpha);
+			(lines || []).forEach(function (line) {
+				if (line.length < 2) return;
+				ctx.beginPath();
+				for (var i = 0; i < line.length; i++) {
+					var p = project(line[i][0], line[i][1]);
+					if (i === 0) ctx.moveTo(p[0], p[1]); else ctx.lineTo(p[0], p[1]);
+				}
+				ctx.stroke();
+			});
+		};
+
+		ctx.lineWidth = 1;
+		stroke(this.detail.borders, 0.32);
+		stroke(this.detail.rivers, 0.3);
+
+		// Skip any city that is a stop on the trip - those get their own,
+		// brighter tag and would otherwise be labelled twice.
+		var self = this;
+		var onRoute = this.stops.map(function (s) { return self.shortName(s.locationName).toLowerCase(); });
+		var places = (this.detail.places || [])
+			.filter(function (p) { return onRoute.indexOf(String(p.name).toLowerCase()) === -1; })
+			.slice(0, this.config.maxPlaceLabels);
+
+		ctx.font = "10px sans-serif";
+		ctx.textAlign = "left";
+		ctx.textBaseline = "middle";
+		places.forEach(function (p) {
+			var xy = project(p.lng, p.lat);
+			ctx.beginPath();
+			ctx.arc(xy[0], xy[1], 1.6, 0, Math.PI * 2);
+			ctx.fillStyle = col(0.5);
+			ctx.fill();
+			ctx.fillStyle = col(0.45);
+			ctx.fillText(p.name, xy[0] + 5, xy[1]);
+		});
+	},
+
+	/**
+	 * Names the first and last stop on the map. The feed already carries
+	 * locationName, so this needs no extra data, and it is what actually tells
+	 * you what you are looking at when the outlines are sparse.
+	 */
+	drawEndpointLabels: function (ctx, project, col, w) {
+		if (this.stops.length < 2) return;
+		var self = this;
+		var ends = [this.stops[0], this.stops[this.stops.length - 1]];
+
+		ctx.font = "13px sans-serif";
+		ctx.textBaseline = "middle";
+		ends.forEach(function (s) {
+			var xy = project(s.lng, s.lat);
+			var name = self.shortName(s.locationName);
+			// Flip the label inboard when the stop sits near the right edge.
+			var right = xy[0] > w * 0.62;
+			ctx.textAlign = right ? "right" : "left";
+			var x = xy[0] + (right ? -13 : 13);
+			ctx.fillStyle = col(0.95);
+			ctx.fillText(name, x, xy[1]);
+		});
+	},
+
 	drawView: function (canvas, view) {
 		var ctx = canvas.getContext("2d");
 		var w = canvas.width, h = canvas.height;
@@ -450,10 +540,19 @@ Module.register("MMM-WallyMap", {
 
 		var project = this.buildProjection(w, h, view.points, view.minSpan);
 
-		// Coastlines and borders, kept faint so the route reads on top of them.
+		/* Outlines, kept faint so the route reads on top of them. Once the fine
+		 * borders are available the coarse country rings are dropped: their
+		 * internal borders are the chords that cut across a zoomed frame. The
+		 * land rings stay, since they are the only coastline either way. */
+		var detailed = project.spanDeg < this.config.detailBelowDeg &&
+			this.detail && this.detail.borders && this.detail.borders.length > 0;
 		ctx.lineWidth = 1;
 		ctx.strokeStyle = col(0.22);
-		this.strokeRings(ctx, project);
+		this.strokeRings(ctx, project, detailed ? this.coast : this.rings);
+
+		if (project.spanDeg < this.config.detailBelowDeg) {
+			this.drawDetail(ctx, project, col);
+		}
 
 		// Route. Flights bow and dash; everything on the ground runs straight.
 		if (this.config.showTrail) {
@@ -502,6 +601,10 @@ Module.register("MMM-WallyMap", {
 		ctx.lineWidth = 1.5;
 		ctx.strokeStyle = col(0.7);
 		ctx.stroke();
+
+		if (this.config.showEndpointLabels) {
+			this.drawEndpointLabels(ctx, project, col, w);
+		}
 
 		if (project.spanDeg < this.config.minimapBelowDeg) {
 			this.drawMinimap(ctx, w, h, col);

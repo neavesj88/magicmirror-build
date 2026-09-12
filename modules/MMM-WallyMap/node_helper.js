@@ -1,11 +1,14 @@
 var NodeHelper = require("node_helper");
+var fs = require("fs/promises");
+var path = require("path");
+var os = require("os");
 
 /* Decodes the world atlas and the travel feed for MMM-WallyMap.
  *
  * The atlas is TopoJSON, which the browser cannot draw directly, so the arcs are
  * decoded here and sent over as plain lng/lat rings. Keeps the front end free of
  * topojson-client and d3-geo, which would otherwise have to be installed on the
- * mirror by hand — the module is deployed with cp, not npm. */
+ * mirror by hand - the module is deployed with cp, not npm. */
 
 /** Delta-decode one quantized TopoJSON arc into [lng, lat] pairs. */
 function decodeArc(arc, transform) {
@@ -20,43 +23,103 @@ function decodeArc(arc, transform) {
 	return out;
 }
 
+/**
+ * Hand every polygon ring (a list of arc indices) of one named object to the
+ * callback.
+ *
+ * The object name matters: this atlas holds both "countries" and "land", which
+ * cover the same ground. Iterating every object drew each coastline twice.
+ */
+function forEachRing(topo, objectName, fn) {
+	var obj = (topo.objects || {})[objectName];
+	if (!obj) return;
+	var geometries = obj.geometries || [obj];
+	geometries.forEach(function (g) {
+		if (g.type === "Polygon") {
+			g.arcs.forEach(fn);
+		} else if (g.type === "MultiPolygon") {
+			g.arcs.forEach(function (poly) { poly.forEach(fn); });
+		}
+	});
+}
+
 /** A ring is a list of arc indices; a negative index means that arc reversed. */
 function ringToCoords(ring, arcs) {
 	var coords = [];
 	for (var i = 0; i < ring.length; i++) {
 		var idx = ring[i];
 		var arc = idx < 0 ? arcs[~idx].slice().reverse() : arcs[idx];
-		// Consecutive arcs share an endpoint — drop the duplicate.
+		// Consecutive arcs share an endpoint - drop the duplicate.
 		coords = coords.concat(i === 0 ? arc : arc.slice(1));
 	}
 	return coords;
 }
 
-function topoToRings(topo) {
+function decodeAllArcs(topo) {
+	return topo.arcs.map(function (a) { return decodeArc(a, topo.transform); });
+}
+
+/**
+ * Rings of one object. "countries" gives outlines with internal borders, which
+ * suit the main map; "land" gives the landmass edge alone, which is what keeps
+ * the continent inset readable rather than a thicket of borders.
+ */
+function topoToRings(topo, objectName) {
 	if (!topo || !topo.transform || !topo.arcs) return [];
-	var arcs = topo.arcs.map(function (a) { return decodeArc(a, topo.transform); });
+	var arcs = decodeAllArcs(topo);
 	var rings = [];
-	Object.keys(topo.objects || {}).forEach(function (key) {
-		var geometries = topo.objects[key].geometries || [topo.objects[key]];
-		geometries.forEach(function (g) {
-			if (g.type === "Polygon") {
-				g.arcs.forEach(function (r) { rings.push(ringToCoords(r, arcs)); });
-			} else if (g.type === "MultiPolygon") {
-				g.arcs.forEach(function (poly) {
-					poly.forEach(function (r) { rings.push(ringToCoords(r, arcs)); });
-				});
-			}
-		});
-	});
+	forEachRing(topo, objectName, function (ring) { rings.push(ringToCoords(ring, arcs)); });
 	return rings;
 }
 
 var DEFAULT_INVITE = "I'm off wandering. Fancy seeing where I've got to?";
 
+/* Extra layers for a local view, where country outlines alone leave the frame
+ * almost empty - between Munich and Salzburg the atlas has nothing to draw.
+ * Cities and rivers are what make that zoom legible.
+ *
+ * ne_10m_lakes is deliberately not here: it carries only major world lakes and
+ * returns nothing for that area, so it would cost 4.8MB for an empty layer.
+ * The 10m rivers are used rather than the 50m because the 50m set drops the
+ * Inn, which is the river that actually anchors that region. */
+var NE_BASE = "https://cdn.jsdelivr.net/gh/nvkelso/natural-earth-vector@master/geojson/";
+var DETAIL_LAYERS = {
+	places: "ne_10m_populated_places_simple.geojson",
+	rivers: "ne_10m_rivers_lake_centerlines.geojson",
+	// The 110m country outlines put only a handful of vertices along a border,
+	// so zoomed in they become long straight chords cutting across the frame.
+	// These are the same borders with real geometry - 1,182 vertices around
+	// Munich and Salzburg where the atlas has a few.
+	borders: "ne_10m_admin_0_boundary_lines_land.geojson",
+};
+var CACHE_DIR = path.join(os.homedir(), ".cache", "mmm-wallymap");
+
+/** True when any coordinate of the geometry falls inside the box. */
+function geometryInBox(geom, box) {
+	var stack = [geom.coordinates];
+	while (stack.length) {
+		var c = stack.pop();
+		if (!Array.isArray(c)) continue;
+		if (typeof c[0] === "number") {
+			if (c[0] >= box.w && c[0] <= box.e && c[1] >= box.s && c[1] <= box.n) return true;
+		} else {
+			for (var i = 0; i < c.length; i++) stack.push(c[i]);
+		}
+	}
+	return false;
+}
+
+/** Flatten a LineString or MultiLineString into a list of lng/lat paths. */
+function linesOf(geom) {
+	if (geom.type === "LineString") return [geom.coordinates];
+	if (geom.type === "MultiLineString") return geom.coordinates;
+	return [];
+}
+
 /* Canned trips for config.testMode, so both behaviours can be checked on the
  * mirror without waiting for a real trip to be published. They are built here
  * rather than in the browser so test mode takes the identical payload path as
- * live data — only the source of the stops differs.
+ * live data - only the source of the stops differs.
  *
  * Coordinates are approximate city centres, which is far more precision than a
  * 400px map needs; they are not from the site's geocoder. */
@@ -82,7 +145,7 @@ function stop(key, title, days) {
 }
 
 var FIXTURES = {
-	// Ground hop: one view, framed to both ends.
+	// Ground hop: one view, auto-scaled to the ground covered.
 	local: {
 		tripTitle: "Test: Munich to Salzburg",
 		invite: DEFAULT_INVITE,
@@ -101,6 +164,8 @@ var FIXTURES = {
 module.exports = NodeHelper.create({
 	start: function () {
 		this.rings = null;
+		this.coast = null;
+		this.layers = {};
 		console.log("[MMM-WallyMap] Node helper started");
 	},
 
@@ -108,14 +173,92 @@ module.exports = NodeHelper.create({
 		if (notification === "WALLY_GET_DATA") this.fetchData(payload);
 	},
 
-	/** The atlas never changes, so it is fetched once per process. */
-	getRings: async function (atlasUrl) {
-		if (this.rings) return this.rings;
+	/** The atlas never changes, so it is fetched and decoded once per process. */
+	getAtlas: async function (atlasUrl) {
+		if (this.rings) return;
 		var res = await fetch(atlasUrl, { signal: AbortSignal.timeout(15000) });
 		if (!res.ok) throw new Error("atlas returned " + res.status);
-		this.rings = topoToRings(await res.json());
-		console.log("[MMM-WallyMap] Atlas decoded: " + this.rings.length + " rings");
-		return this.rings;
+		var topo = await res.json();
+		this.rings = topoToRings(topo, "countries");
+		this.coast = topoToRings(topo, "land");
+		console.log("[MMM-WallyMap] Atlas decoded: " + this.rings.length +
+			" country rings, " + this.coast.length + " land rings");
+	},
+
+	/**
+	 * One Natural Earth layer, cached on disk so the download happens once on
+	 * this machine rather than on every restart - MagicMirror restarts nightly
+	 * after the update cron, and these are megabytes.
+	 */
+	loadLayer: async function (key) {
+		if (this.layers[key]) return this.layers[key];
+
+		var file = DETAIL_LAYERS[key];
+		var cached = path.join(CACHE_DIR, file);
+		try {
+			this.layers[key] = JSON.parse(await fs.readFile(cached, "utf8"));
+			console.log("[MMM-WallyMap] " + key + ": from cache");
+			return this.layers[key];
+		} catch (e) { /* not cached yet */ }
+
+		var res = await fetch(NE_BASE + file, { signal: AbortSignal.timeout(60000) });
+		if (!res.ok) throw new Error(key + " returned " + res.status);
+		var text = await res.text();
+		this.layers[key] = JSON.parse(text);
+		try {
+			await fs.mkdir(CACHE_DIR, { recursive: true });
+			await fs.writeFile(cached, text);
+			console.log("[MMM-WallyMap] " + key + ": downloaded and cached (" +
+				Math.round(text.length / 1048576) + "MB)");
+		} catch (e) {
+			console.error("[MMM-WallyMap] could not cache " + key + ": " + e.message);
+		}
+		return this.layers[key];
+	},
+
+	/** Cities and rivers inside the box, thinned to what is worth drawing. */
+	getDetail: async function (box, minPopulation) {
+		var places = [], rivers = [], borders = [];
+
+		try {
+			var p = await this.loadLayer("places");
+			(p.features || []).forEach(function (f) {
+				var pr = f.properties || {};
+				var g = f.geometry;
+				if (!g || g.type !== "Point") return;
+				var lng = g.coordinates[0], lat = g.coordinates[1];
+				if (lng < box.w || lng > box.e || lat < box.s || lat > box.n) return;
+				if ((pr.pop_max || 0) < minPopulation) return;
+				places.push({ name: pr.name, pop: pr.pop_max || 0, lat: lat, lng: lng });
+			});
+			// Biggest first, so the renderer can cap the count and keep the
+			// places that actually orient someone.
+			places.sort(function (a, b) { return b.pop - a.pop; });
+		} catch (e) {
+			console.error("[MMM-WallyMap] places layer:", e.message);
+		}
+
+		try {
+			var r = await this.loadLayer("rivers");
+			(r.features || []).forEach(function (f) {
+				if (!f.geometry || !geometryInBox(f.geometry, box)) return;
+				linesOf(f.geometry).forEach(function (line) { rivers.push(line); });
+			});
+		} catch (e) {
+			console.error("[MMM-WallyMap] rivers layer:", e.message);
+		}
+
+		try {
+			var b = await this.loadLayer("borders");
+			(b.features || []).forEach(function (f) {
+				if (!f.geometry || !geometryInBox(f.geometry, box)) return;
+				linesOf(f.geometry).forEach(function (line) { borders.push(line); });
+			});
+		} catch (e) {
+			console.error("[MMM-WallyMap] borders layer:", e.message);
+		}
+
+		return { places: places, rivers: rivers, borders: borders };
 	},
 
 	/** Published stops and legs from the site's travel feed. */
@@ -177,7 +320,7 @@ module.exports = NodeHelper.create({
 	 *
 	 * timezone=auto makes open-meteo resolve the zone for the coordinates and
 	 * return its real UTC offset, which is why the clock is correct through DST
-	 * and across countries that do not follow their longitude — deriving the
+	 * and across countries that do not follow their longitude - deriving the
 	 * offset from longitude alone puts Spain an hour out, among others.
 	 */
 	fetchLocal: async function (lat, lng) {
@@ -208,7 +351,33 @@ module.exports = NodeHelper.create({
 				catch (e) { console.error("[MMM-WallyMap] Local conditions:", e.message); }
 			}
 
-			var rings = trip.stops.length ? await this.getRings(config.atlasUrl) : [];
+			if (trip.stops.length) await this.getAtlas(config.atlasUrl);
+
+			/* Detail layers are megabytes, so they are only loaded when the view
+			 * will actually be local enough to need them - a world view of a
+			 * long-haul flight never pays for them. */
+			var detail = null;
+			var lats = [], lngs = [];
+			trip.stops.forEach(function (s) { lats.push(s.lat); lngs.push(s.lng); });
+			trip.legs.forEach(function (l) {
+				lats.push(l.fromLat, l.toLat);
+				lngs.push(l.fromLng, l.toLng);
+			});
+			if (lats.length) {
+				var span = Math.max(
+					Math.max.apply(null, lats) - Math.min.apply(null, lats),
+					Math.max.apply(null, lngs) - Math.min.apply(null, lngs)
+				);
+				if (span <= config.detailBelowDeg) {
+					var m = Math.max(1, span);
+					detail = await this.getDetail({
+						w: Math.min.apply(null, lngs) - m,
+						e: Math.max.apply(null, lngs) + m,
+						s: Math.min.apply(null, lats) - m,
+						n: Math.max.apply(null, lats) + m,
+					}, config.minPlacePopulation);
+				}
+			}
 
 			this.sendSocketNotification("WALLY_DATA", {
 				travelling: trip.stops.length > 0,
@@ -217,7 +386,9 @@ module.exports = NodeHelper.create({
 				stops: trip.stops,
 				legs: trip.legs,
 				local: local,
-				rings: rings,
+				detail: detail,
+				rings: trip.stops.length ? this.rings : [],
+				coast: trip.stops.length ? this.coast : [],
 			});
 		} catch (error) {
 			console.error("[MMM-WallyMap] Error:", error.message);
