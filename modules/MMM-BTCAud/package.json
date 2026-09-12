@@ -1,0 +1,1 @@
+{ "name": "MMM-BTCAud", "version": "1.0.0", "description": "Bitcoin AUD price + 7-day chart", "main": "node_helper.js", "dependencies": {} }

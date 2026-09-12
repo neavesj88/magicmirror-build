@@ -1,0 +1,8 @@
+# Repo is edited on Windows, executed on Debian — CRLF in a script means
+# "bad interpreter: /bin/bash^M". Force LF regardless of anyone's core.autocrlf.
+* text=auto eol=lf
+*.sh text eol=lf
+*.js text eol=lf
+*.css text eol=lf
+*.ini text eol=lf
+*.pdf binary

@@ -1,0 +1,8 @@
+.btcaud-wrapper { text-align: center; min-width: 300px; }
+.btcaud-loading { color: inherit; font-size: 14px; opacity: 0.5; }
+.btcaud-price { display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 5px; }
+.btcaud-icon { color: inherit; font-size: 28px; font-weight: bold; }
+.btcaud-amount { font-size: 32px; font-weight: 300; color: inherit; letter-spacing: 1px; }
+.btcaud-changes { display: flex; justify-content: center; gap: 20px; margin-bottom: 8px; }
+.btcaud-change { font-size: 13px; font-weight: 400; color: inherit; }
+.btcaud-chart { display: block; margin: 0 auto; }

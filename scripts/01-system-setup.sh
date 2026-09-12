@@ -28,7 +28,7 @@ divider "PHASE 1: PACKAGES"
 info "Updating apt..."
 sudo apt-get update -qq
 
-PACKAGES=(weston net-tools x11-xserver-utils xdotool unclutter evtest)
+PACKAGES=(weston net-tools x11-xserver-utils xdotool unclutter evtest openssh-server)
 MISSING=()
 for pkg in "${PACKAGES[@]}"; do
     dpkg -l "$pkg" 2>/dev/null | grep -q "^ii" || MISSING+=("$pkg")
@@ -41,6 +41,10 @@ if [ ${#MISSING[@]} -gt 0 ]; then
 else
     skip "All packages present"
 fi
+
+# Remote admin — the mirror is wall-mounted, so SSH is the only practical way in
+sudo systemctl enable --now ssh
+ok "SSH enabled (mirror.local:22)"
 
 # Make /sbin available in PATH (ifconfig etc like Kali)
 SBIN_PROFILE="/etc/profile.d/sbin-path.sh"

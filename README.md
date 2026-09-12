@@ -20,6 +20,7 @@ Complete build scripts and config for a MagicMirror² smart mirror kiosk.
 - Custom MMM-BTCAud module (BTC/AUD price + 7-day chart)
 - MMM-Remote-Control + Repository (phone management)
 - WiFi config portal with hotspot failover
+- OpenSSH for headless admin
 
 ## Quick Start
 
@@ -31,23 +32,16 @@ Complete build scripts and config for a MagicMirror² smart mirror kiosk.
    cd ~ && git clone https://github.com/MagicMirrorOrg/MagicMirror
    cd MagicMirror && npm install --production
    ```
-5. Run the build scripts in order:
+5. Clone this repo onto the mirror, then run the build scripts in order from the repo root:
    ```bash
    bash scripts/01-system-setup.sh 2>&1 | tee setup.log
    bash scripts/02-modules-install.sh 2>&1 | tee modules.log
    bash scripts/03-portal-install.sh 2>&1 | tee portal.log
    ```
-6. Copy config files:
-   ```bash
-   cp config/config-guest.js ~/MagicMirror/config/
-   cp config/config-personal.js ~/MagicMirror/config/
-   ln -sf ~/MagicMirror/config/config-guest.js ~/MagicMirror/config/config.js
-   ```
-7. Copy custom module:
-   ```bash
-   cp -r modules/MMM-BTCAud ~/MagicMirror/modules/
-   ```
-8. Reboot: `sudo reboot`
+   Script 02 installs the modules, configs and `custom.css` straight from `config/` and
+   `modules/` in this repo — no manual copying needed. An existing
+   `config-personal.js` on the device is never overwritten.
+6. Reboot: `sudo reboot`
 
 ## Access
 
@@ -56,7 +50,12 @@ Complete build scripts and config for a MagicMirror² smart mirror kiosk.
 | Mirror display | http://mirror.local:8080 |
 | Remote Control | http://mirror.local:8080/remote.html |
 | Config Portal | http://mirror.local:8081 |
+| SSH | `ssh mirror@mirror.local` |
 | WiFi Setup Hotspot | SSID: MirrorSetup / Pass: mirror123 → http://192.168.4.1:8081 |
+
+> The mirror display and Remote Control are served to the whole LAN with no auth
+> (`ipWhitelist: []`, `secureEndpoints: false`). Fine behind a trusted home network,
+> worth tightening if the box ever lands on a shared one.
 
 ## Management
 
@@ -99,17 +98,21 @@ Would be a new custom module `MMM-SmartLifeTH`. Needs device ID and local key fr
 
 ```
 scripts/
-  01-system-setup.sh       # Packages, autologin, kiosk, debloat, fast boot
-  02-modules-install.sh    # MMM-Remote-Control, MMM-BTCAud, desktop icons
-  03-portal-install.sh     # WiFi config portal + watchdog
+  01-system-setup.sh       # Packages, SSH, autologin, kiosk, debloat, fast boot
+  02-modules-install.sh    # Installs modules + configs from this repo
+  03-portal-install.sh     # WiFi config portal + hotspot watchdog
 config/
-  config-guest.js          # Guest profile
-  config-personal.js       # Personal profile (crypto/stats placeholders)
-  weston.ini               # Weston compositor config (no bars, fullscreen)
+  config-guest.js          # Guest profile — always reinstalled by script 02
+  config-personal.js       # Personal profile seed — copied only if absent on device
   custom.css               # Portrait rotation CSS
+  weston.ini               # Reference only; script 01 generates this with the
+                           #   display output detected via xrandr
 modules/
   MMM-BTCAud/              # Custom BTC/AUD price + chart module
 docs/
   blog-post.md             # Project blog post
   cheatsheet.pdf           # Printed A4 reference card
 ```
+
+`config/` and `modules/` are the source of truth — edit them here, re-run script 02
+on the mirror to deploy. The scripts no longer carry duplicate copies inline.
