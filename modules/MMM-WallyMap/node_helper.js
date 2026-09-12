@@ -116,6 +116,31 @@ function linesOf(geom) {
 	return [];
 }
 
+/**
+ * Drop points closer together than the drawing can show.
+ *
+ * The close view renders about 10 degrees across a 400px canvas, so one pixel
+ * is roughly 0.025 degrees; anything finer than that cannot be seen. Natural
+ * Earth's 10m geometry is far denser than that, and every extra vertex is paid
+ * for twice - once serialising the payload each poll, once stroking it - on a
+ * Celeron that has better things to do.
+ */
+function thin(line, tolerance) {
+	if (line.length < 3) return line;
+	var out = [line[0]];
+	var last = line[0];
+	for (var i = 1; i < line.length - 1; i++) {
+		if (Math.abs(line[i][0] - last[0]) >= tolerance ||
+			Math.abs(line[i][1] - last[1]) >= tolerance) {
+			out.push(line[i]);
+			last = line[i];
+		}
+	}
+	out.push(line[line.length - 1]);
+	return out;
+}
+var THIN_DEG = 0.02;
+
 /* Canned trips for config.testMode, so both behaviours can be checked on the
  * mirror without waiting for a real trip to be published. They are built here
  * rather than in the browser so test mode takes the identical payload path as
@@ -165,7 +190,7 @@ module.exports = NodeHelper.create({
 	start: function () {
 		this.rings = null;
 		this.coast = null;
-		this.layers = {};
+		this.detailCache = null;
 		console.log("[MMM-WallyMap] Node helper started");
 	},
 
@@ -191,20 +216,19 @@ module.exports = NodeHelper.create({
 	 * after the update cron, and these are megabytes.
 	 */
 	loadLayer: async function (key) {
-		if (this.layers[key]) return this.layers[key];
-
 		var file = DETAIL_LAYERS[key];
 		var cached = path.join(CACHE_DIR, file);
 		try {
-			this.layers[key] = JSON.parse(await fs.readFile(cached, "utf8"));
-			console.log("[MMM-WallyMap] " + key + ": from cache");
-			return this.layers[key];
-		} catch (e) { /* not cached yet */ }
+			return JSON.parse(await fs.readFile(cached, "utf8"));
+		} catch (e) {
+			// Absent, unreadable, or truncated by a power cut mid-write - either
+			// way the fix is the same, fetch it again and overwrite.
+		}
 
 		var res = await fetch(NE_BASE + file, { signal: AbortSignal.timeout(60000) });
 		if (!res.ok) throw new Error(key + " returned " + res.status);
 		var text = await res.text();
-		this.layers[key] = JSON.parse(text);
+		var parsed = JSON.parse(text);
 		try {
 			await fs.mkdir(CACHE_DIR, { recursive: true });
 			await fs.writeFile(cached, text);
@@ -213,11 +237,24 @@ module.exports = NodeHelper.create({
 		} catch (e) {
 			console.error("[MMM-WallyMap] could not cache " + key + ": " + e.message);
 		}
-		return this.layers[key];
+		return parsed;
 	},
 
-	/** Cities and rivers inside the box, thinned to what is worth drawing. */
+	/**
+	 * Cities, rivers and borders inside the box, thinned to what is worth
+	 * drawing.
+	 *
+	 * Result is cached against the box, and the full layers are deliberately not
+	 * retained: parsed, those three files are a few hundred megabytes of object
+	 * graph, which is not something to hold for weeks inside the MagicMirror
+	 * process on a 4GB box. The box only changes when he reaches a new stop, so
+	 * the parse happens about once a day rather than every poll.
+	 */
 	getDetail: async function (box, minPopulation) {
+		var key = [box.w, box.s, box.e, box.n].map(function (v) { return v.toFixed(2); }).join(",") +
+			"@" + minPopulation;
+		if (this.detailCache && this.detailCache.key === key) return this.detailCache.detail;
+
 		var places = [], rivers = [], borders = [];
 
 		try {
@@ -242,7 +279,7 @@ module.exports = NodeHelper.create({
 			var r = await this.loadLayer("rivers");
 			(r.features || []).forEach(function (f) {
 				if (!f.geometry || !geometryInBox(f.geometry, box)) return;
-				linesOf(f.geometry).forEach(function (line) { rivers.push(line); });
+				linesOf(f.geometry).forEach(function (line) { rivers.push(thin(line, THIN_DEG)); });
 			});
 		} catch (e) {
 			console.error("[MMM-WallyMap] rivers layer:", e.message);
@@ -252,13 +289,20 @@ module.exports = NodeHelper.create({
 			var b = await this.loadLayer("borders");
 			(b.features || []).forEach(function (f) {
 				if (!f.geometry || !geometryInBox(f.geometry, box)) return;
-				linesOf(f.geometry).forEach(function (line) { borders.push(line); });
+				linesOf(f.geometry).forEach(function (line) { borders.push(thin(line, THIN_DEG)); });
 			});
 		} catch (e) {
 			console.error("[MMM-WallyMap] borders layer:", e.message);
 		}
 
-		return { places: places, rivers: rivers, borders: borders };
+		// The renderer labels only a handful; sending hundreds would be payload
+		// for nothing. Biggest first, since the box scales with the view - close
+		// in they are the local towns, further out the ones worth naming.
+		places = places.slice(0, 40);
+
+		var detail = { places: places, rivers: rivers, borders: borders };
+		this.detailCache = { key: key, detail: detail };
+		return detail;
 	},
 
 	/** Published stops and legs from the site's travel feed. */
@@ -338,9 +382,23 @@ module.exports = NodeHelper.create({
 
 	fetchData: async function (config) {
 		try {
-			var trip = config.testMode && FIXTURES[config.testMode]
-				? FIXTURES[config.testMode]
-				: await this.fetchLive(config);
+			/* Test mode is a preview, not an override. The real feed wins the
+			 * moment it has a published stop, so leaving testMode on cannot
+			 * strand the mirror showing canned data for a whole trip - nobody
+			 * has to remember to turn it off, and it cannot be turned off from
+			 * the road anyway. */
+			var trip;
+			if (config.testMode && FIXTURES[config.testMode]) {
+				trip = FIXTURES[config.testMode];
+				try {
+					var live = await this.fetchLive(config);
+					if (live.stops.length) trip = live;
+				} catch (e) {
+					console.error("[MMM-WallyMap] live feed while previewing:", e.message);
+				}
+			} else {
+				trip = await this.fetchLive(config);
+			}
 
 			var here = trip.stops[trip.stops.length - 1];
 
@@ -353,30 +411,20 @@ module.exports = NodeHelper.create({
 
 			if (trip.stops.length) await this.getAtlas(config.atlasUrl);
 
-			/* Detail layers are megabytes, so they are only loaded when the view
-			 * will actually be local enough to need them - a world view of a
-			 * long-haul flight never pays for them. */
+			/* Detail is for the close view, which is always around where he is
+			 * now, so the box follows the current stop rather than the whole
+			 * route. Keyed off the route it vanished as the trip grew: once
+			 * stops spanned more than detailBelowDeg - which any multi-country
+			 * trip does - no view got detail at all. */
 			var detail = null;
-			var lats = [], lngs = [];
-			trip.stops.forEach(function (s) { lats.push(s.lat); lngs.push(s.lng); });
-			trip.legs.forEach(function (l) {
-				lats.push(l.fromLat, l.toLat);
-				lngs.push(l.fromLng, l.toLng);
-			});
-			if (lats.length) {
-				var span = Math.max(
-					Math.max.apply(null, lats) - Math.min.apply(null, lats),
-					Math.max.apply(null, lngs) - Math.min.apply(null, lngs)
-				);
-				if (span <= config.detailBelowDeg) {
-					var m = Math.max(1, span);
-					detail = await this.getDetail({
-						w: Math.min.apply(null, lngs) - m,
-						e: Math.max.apply(null, lngs) + m,
-						s: Math.min.apply(null, lats) - m,
-						n: Math.max.apply(null, lats) + m,
-					}, config.minPlacePopulation);
-				}
+			if (here) {
+				var m = config.detailBoxDeg / 2;
+				detail = await this.getDetail({
+					w: here.lng - m,
+					e: here.lng + m,
+					s: here.lat - m,
+					n: here.lat + m,
+				}, config.minPlacePopulation);
 			}
 
 			this.sendSocketNotification("WALLY_DATA", {
@@ -387,8 +435,12 @@ module.exports = NodeHelper.create({
 				legs: trip.legs,
 				local: local,
 				detail: detail,
-				rings: trip.stops.length ? this.rings : [],
-				coast: trip.stops.length ? this.coast : [],
+				/* The atlas is static, so it is sent once and then omitted -
+				 * null means "keep what you have". Re-serialising 15,000 points
+				 * every poll for weeks is work nobody benefits from. The client
+				 * asks for it again after a reload, when it has none. */
+				rings: (trip.stops.length && !config.hasAtlas) ? this.rings : null,
+				coast: (trip.stops.length && !config.hasAtlas) ? this.coast : null,
 			});
 		} catch (error) {
 			console.error("[MMM-WallyMap] Error:", error.message);
