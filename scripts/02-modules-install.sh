@@ -79,8 +79,15 @@ else
     ok "config-personal.js seeded from repo default"
 fi
 
-ln -sf "$MMDIR/config/config-guest.js" "$MMDIR/config/config.js"
-ok "Active profile → guest"
+# Which profile is live is the user's choice, and this script now runs
+# unattended from the nightly update - resetting it to guest every night would
+# quietly undo mm-profile.sh. Only pick one when nothing is chosen yet.
+if [ -L "$MMDIR/config/config.js" ] || [ -f "$MMDIR/config/config.js" ]; then
+    skip "Active profile left as $(basename "$(readlink -f "$MMDIR/config/config.js")")"
+else
+    ln -sf "$MMDIR/config/config-guest.js" "$MMDIR/config/config.js"
+    ok "Active profile → guest"
+fi
 
 cp "$REPO_DIR/config/custom.css" "$MMDIR/css/custom.css"
 ok "custom.css installed (portrait rotation)"

@@ -339,6 +339,15 @@ Exec=bash -c "killall xfce4-panel 2>/dev/null; systemctl --user restart magicmir
 Terminal=false
 EOF
 
+cat > ~/Desktop/Update-Mirror.desktop << 'EOF'
+[Desktop Entry]
+Type=Application
+Name=Update Mirror
+Icon=system-software-update
+Exec=xfce4-terminal --title=Mirror-Update -e /home/mirror/mm-update-interactive.sh
+Terminal=false
+EOF
+
 chmod +x ~/Desktop/*.desktop
 for f in ~/Desktop/*.desktop; do
     gio set "$f" metadata::xfce-exe-checksum "$(sha256sum "$f" | cut -d' ' -f1)" 2>/dev/null || true
@@ -366,15 +375,30 @@ echo "Switched to $PROFILE."
 EOF
 chmod +x ~/mm-profile.sh
 
-# Auto updater — MM² core AND every git-based module, so updatenotification
-# stops nagging. Restarts only when something actually changed.
+# Auto updater — this build repo, then MM² core and every git-based module, so
+# updatenotification stops nagging. Restarts only when something changed.
+#
+# Pulling the build repo here is what lets a change pushed to GitHub reach the
+# mirror on its own: there is no shell access to this box from outside, so the
+# mirror fetches rather than being deployed to.
 cat > ~/mm-update.sh << 'EOF'
 #!/bin/bash
 LOG="$HOME/mm-update.log"
 MMDIR="$HOME/MagicMirror"
+# Cloned here if absent, so this works even on a box where the repo was first
+# unpacked somewhere else.
+BUILD_REPO="$HOME/magicmirror-build"
+BUILD_URL="https://github.com/neavesj88/magicmirror-build.git"
 CHANGED=0
 
-log() { echo "$*" >> "$LOG"; }
+# --force redeploys the configs and modules even when nothing new was pushed,
+# which is what the desktop icon wants: clicking it should always apply.
+FORCE=0
+[ "${1:-}" = "--force" ] && FORCE=1
+
+# Summary lines go to the terminal as well as the log, so the desktop icon
+# shows something useful. Command output stays in the log only.
+log() { echo "$*" | tee -a "$LOG"; }
 
 # Don't let the log eat the eMMC
 if [ -f "$LOG" ] && [ "$(stat -c%s "$LOG" 2>/dev/null || echo 0)" -gt 1000000 ]; then
@@ -406,10 +430,46 @@ update_repo() {
     CHANGED=1
 }
 
+# The build repo first, so new module files are in place before anything is
+# restarted. Redeploys only when it actually moved, because 02 reinstalls node
+# modules and that is not worth doing nightly for nothing.
+deploy_build_repo() {
+    local before after
+    if [ ! -d "$BUILD_REPO/.git" ]; then
+        log "  build repo: cloning into $BUILD_REPO"
+        git clone "$BUILD_URL" "$BUILD_REPO" >> "$LOG" 2>&1 || {
+            log "  build repo: clone FAILED"; return 0; }
+    else
+        cd "$BUILD_REPO" 2>/dev/null || { log "  build repo: unreadable, skipped"; return 0; }
+        before=$(git rev-parse HEAD 2>/dev/null)
+        if ! git pull --ff-only >> "$LOG" 2>&1; then
+            log "  build repo: pull failed (local edits or diverged), skipped"
+            return 0
+        fi
+        after=$(git rev-parse HEAD)
+        if [ "$before" = "$after" ]; then
+            log "  build repo: up to date"
+            [ "$FORCE" = "0" ] && return 0
+            log "  build repo: forced redeploy"
+        else
+            log "  build repo: ${before:0:8} -> ${after:0:8}"
+        fi
+    fi
+
+    if bash "$BUILD_REPO/scripts/02-modules-install.sh" >> "$LOG" 2>&1; then
+        log "  build repo: modules and configs redeployed"
+        CHANGED=1
+    else
+        log "  build repo: redeploy FAILED, see $LOG"
+    fi
+}
+
+deploy_build_repo
+
 update_repo "$MMDIR" "MagicMirror core"
 
-# MMM-BTCAud is deployed from the build repo, not cloned, so it has no .git
-# and is skipped automatically.
+# Custom modules are deployed from the build repo, not cloned, so they have no
+# .git and are skipped automatically.
 for d in "$MMDIR"/modules/*/; do
     [ -d "$d/.git" ] || continue
     update_repo "$d" "$(basename "$d")"
@@ -424,6 +484,16 @@ else
 fi
 EOF
 chmod +x ~/mm-update.sh
+
+# What the desktop icon runs: force a redeploy even with nothing new pushed,
+# then hold the window open so the result can actually be read.
+cat > ~/mm-update-interactive.sh << 'EOF'
+#!/bin/bash
+"$HOME/mm-update.sh" --force
+echo
+read -rp "Finished - press Enter to close "
+EOF
+chmod +x ~/mm-update-interactive.sh
 
 # WiFi helper
 cat > ~/mm-wifi.sh << 'EOF'
@@ -447,7 +517,9 @@ ok "Utility scripts created"
 
 # Nightly updates. Rewrites any existing entry so re-running this script
 # corrects the schedule instead of leaving a stale one behind.
-CRON_LINE="0 3 * * * $HOME/mm-update.sh"
+# Redirected because log() also writes to stdout now, and cron would otherwise
+# try to mail every run.
+CRON_LINE="0 3 * * * $HOME/mm-update.sh >/dev/null 2>&1"
 ( crontab -l 2>/dev/null | grep -vF "mm-update.sh"; echo "$CRON_LINE" ) | crontab -
 ok "Update cron installed (daily 03:00)"
 
