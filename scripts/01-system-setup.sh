@@ -366,24 +366,62 @@ echo "Switched to $PROFILE."
 EOF
 chmod +x ~/mm-profile.sh
 
-# Auto updater
+# Auto updater — MM² core AND every git-based module, so updatenotification
+# stops nagging. Restarts only when something actually changed.
 cat > ~/mm-update.sh << 'EOF'
 #!/bin/bash
 LOG="$HOME/mm-update.log"
 MMDIR="$HOME/MagicMirror"
-echo "=== MM² Update: $(date) ===" >> "$LOG"
-cd "$MMDIR" || exit 1
-git fetch origin 2>&1 >> "$LOG"
-LOCAL=$(git rev-parse HEAD)
-REMOTE=$(git rev-parse origin/master)
-if [ "$LOCAL" = "$REMOTE" ]; then
-    echo "Up to date." >> "$LOG"; exit 0
+CHANGED=0
+
+log() { echo "$*" >> "$LOG"; }
+
+# Don't let the log eat the eMMC
+if [ -f "$LOG" ] && [ "$(stat -c%s "$LOG" 2>/dev/null || echo 0)" -gt 1000000 ]; then
+    tail -n 500 "$LOG" > "$LOG.tmp" && mv "$LOG.tmp" "$LOG"
 fi
-echo "Updating ${LOCAL:0:8} → ${REMOTE:0:8}" >> "$LOG"
-git pull origin master 2>&1 >> "$LOG"
-npm install --production 2>&1 >> "$LOG"
-systemctl --user restart magicmirror 2>&1 >> "$LOG"
-echo "Done." >> "$LOG"
+
+log ""
+log "=== MM² Update: $(date) ==="
+
+# Pull one repo, npm install if it moved. Never aborts the run on failure —
+# one broken module must not stop the rest from updating.
+update_repo() {
+    local dir="$1" label="$2" before after
+    cd "$dir" 2>/dev/null || { log "  $label: missing, skipped"; return 0; }
+    before=$(git rev-parse HEAD 2>/dev/null) || { log "  $label: not a git repo, skipped"; return 0; }
+    if ! git pull --ff-only >> "$LOG" 2>&1; then
+        log "  $label: pull failed (local edits or diverged), skipped"
+        return 0
+    fi
+    after=$(git rev-parse HEAD)
+    if [ "$before" = "$after" ]; then
+        log "  $label: up to date"
+        return 0
+    fi
+    log "  $label: ${before:0:8} -> ${after:0:8}"
+    if [ -f package.json ]; then
+        npm install --omit=dev >> "$LOG" 2>&1 || log "  $label: npm install FAILED"
+    fi
+    CHANGED=1
+}
+
+update_repo "$MMDIR" "MagicMirror core"
+
+# MMM-BTCAud is deployed from the build repo, not cloned, so it has no .git
+# and is skipped automatically.
+for d in "$MMDIR"/modules/*/; do
+    [ -d "$d/.git" ] || continue
+    update_repo "$d" "$(basename "$d")"
+done
+
+if [ "$CHANGED" = "1" ]; then
+    log "Restarting MagicMirror..."
+    systemctl --user restart magicmirror >> "$LOG" 2>&1
+    log "Done - updates applied."
+else
+    log "Done - nothing to update."
+fi
 EOF
 chmod +x ~/mm-update.sh
 
@@ -407,8 +445,10 @@ chmod +x ~/mm-wifi.sh
 
 ok "Utility scripts created"
 
-# Cron for weekly updates
-CRON_LINE="0 3 * * 0 $HOME/mm-update.sh"
-crontab -l 2>/dev/null | grep -qF "mm-update" || { (crontab -l 2>/dev/null; echo "$CRON_LINE") | crontab -; ok "Weekly update cron added"; }
+# Nightly updates. Rewrites any existing entry so re-running this script
+# corrects the schedule instead of leaving a stale one behind.
+CRON_LINE="0 3 * * * $HOME/mm-update.sh"
+( crontab -l 2>/dev/null | grep -vF "mm-update.sh"; echo "$CRON_LINE" ) | crontab -
+ok "Update cron installed (daily 03:00)"
 
 divider "SYSTEM SETUP COMPLETE — Run 02-modules-install.sh next"

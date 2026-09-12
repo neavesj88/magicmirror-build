@@ -15,10 +15,13 @@ Complete build scripts and config for a MagicMirror² smart mirror kiosk.
 ## Software
 
 - Debian 13 (Trixie) with XFCE
-- MagicMirror² v2.35.0
+- MagicMirror² — tracks upstream `master` via the weekly `mm-update.sh` cron
+  (2.36.0 on the live unit as of 12 Sep 2026; upstream latest is 2.37.0)
 - Weston compositor (MM² defaults to Wayland)
 - Custom MMM-BTCAud module (BTC/AUD price + 7-day chart)
-- MMM-Remote-Control + Repository (phone management)
+- Custom MMM-WallyMap module (white wireframe map of the current trip, pulled
+  from the "Where's Wally" travel feed on neaves.au; hides itself when home)
+- MMM-Remote-Control (phone management)
 - WiFi config portal with hotspot failover
 - OpenSSH for headless admin
 
@@ -109,6 +112,7 @@ config/
                            #   display output detected via xrandr
 modules/
   MMM-BTCAud/              # Custom BTC/AUD price + chart module
+  MMM-WallyMap/            # Wireframe travel map from the neaves.au travel feed
 docs/
   blog-post.md             # Project blog post
   cheatsheet.pdf           # Printed A4 reference card

@@ -1,0 +1,1 @@
+{ "name": "MMM-WallyMap", "version": "1.0.0", "description": "Where's Wally travel map from neaves.au", "main": "node_helper.js", "dependencies": {} }
