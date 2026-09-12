@@ -1,5 +1,7 @@
 .wallymap-wrapper { text-align: center; }
 .wallymap-status { color: inherit; font-size: 14px; opacity: 0.5; }
+.wallymap-substatus { color: inherit; font-size: 12px; opacity: 0.3; margin-top: 4px; }
+.wallymap-offline { font-size: 12px; color: inherit; opacity: 0.4; letter-spacing: 1px; }
 
 /* The views are stacked so a fade swaps between them in place. Only one is
  * ever opaque, so the stage must reserve the height itself. */

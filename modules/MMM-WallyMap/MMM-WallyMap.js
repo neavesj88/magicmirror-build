@@ -29,8 +29,12 @@ Module.register("MMM-WallyMap", {
 		// distance actually travelled rather than being forced out to a
 		// continent. routeFill then adds the margin around it.
 		groundSpanDeg: 1.2,
-		// Degrees across the close view of the current location.
-		closeSpanDeg: 11,
+		/* Floor for the close view. This is fitted to the frame's short side and
+		 * then routeFill pads it, so 4 here renders about 10 degrees across -
+		 * under detailBelowDeg, which is what earns the close view its cities
+		 * and rivers. At the old 11 it rendered 28 degrees across: neither local
+		 * nor the whole journey, and too wide to qualify for any detail. */
+		closeSpanDeg: 4,
 		// Fraction of the frame the route fills. Below 1 leaves surrounding
 		// country around it, which is what makes the wireframe read as a map
 		// rather than a few abstract lines.
@@ -38,6 +42,10 @@ Module.register("MMM-WallyMap", {
 		// Country outlines alone leave a local frame nearly empty, so below this
 		// span the view also gets rivers and nearby cities.
 		detailBelowDeg: 12,
+		// Degrees of map the detail layers are clipped to, centred on where he
+		// is. Comfortably wider than the close view so panning within it needs
+		// no refetch.
+		detailBoxDeg: 16,
 		minPlacePopulation: 50000,
 		maxPlaceLabels: 6,
 		// Name the first and last stop on the map itself.
@@ -59,6 +67,9 @@ Module.register("MMM-WallyMap", {
 		viewHoldMs: 12000,
 		fadeMs: 4000,
 		showTrail: true,
+		// How long the feed must be unreachable before the held position is
+		// labelled stale. Three missed polls, so a single blip says nothing.
+		staleAfterMins: 45,
 		// Wally's wall clock and the temperature where he is.
 		showLocalClock: true,
 		// Nudge whoever is brushing their teeth towards the travel blog. The
@@ -87,6 +98,10 @@ Module.register("MMM-WallyMap", {
 		this.detail = null;
 		this.loaded = false;
 		this.error = null;
+		// When the feed last answered, and whether it is answering now, so a
+		// held position can be labelled as stale rather than passing for current.
+		this.lastGoodAt = null;
+		this.offline = false;
 		this.viewTimer = null;
 		this.clockTimer = null;
 		this.clockEl = null;
@@ -102,8 +117,10 @@ Module.register("MMM-WallyMap", {
 			currentUrl: this.config.currentUrl,
 			atlasUrl: this.config.atlasUrl,
 			testMode: this.config.testMode,
-			detailBelowDeg: this.config.detailBelowDeg,
+			detailBoxDeg: this.config.detailBoxDeg,
 			minPlacePopulation: this.config.minPlacePopulation,
+			// Already have the outlines, so they need not be sent again.
+			hasAtlas: this.rings.length > 0,
 		});
 	},
 
@@ -115,16 +132,30 @@ Module.register("MMM-WallyMap", {
 			this.local = payload.local;
 			this.stops = payload.stops || [];
 			this.legs = payload.legs || [];
-			this.rings = payload.rings || [];
-			this.coast = payload.coast || [];
+			// null means unchanged, so keep the outlines already held.
+			if (payload.rings) this.rings = payload.rings;
+			if (payload.coast) this.coast = payload.coast;
 			this.detail = payload.detail || null;
 			this.error = null;
 			this.loaded = true;
+			this.offline = false;
+			if (payload.travelling) this.lastGoodAt = Date.now();
 			// Nothing published means he is home - give the space back.
 			if (this.travelling) { this.show(this.config.animationSpeed); }
 			else { this.hide(this.config.animationSpeed); }
 			this.updateDom(this.config.animationSpeed);
 		} else if (notification === "WALLY_ERROR") {
+			/* A failed poll must not wipe a working map. The mirror runs
+			 * unattended for weeks at a time, and neaves.au being briefly
+			 * unreachable should leave the last known position on screen rather
+			 * than replace it with an error until the next poll succeeds. Only
+			 * say something when there has never been anything to show. */
+			if (this.stops.length) {
+				console.warn("[MMM-WallyMap] keeping last known position: " + payload.message);
+				this.offline = true;
+				this.updateDom(this.config.animationSpeed);
+				return;
+			}
 			this.error = payload.message;
 			this.loaded = true;
 			this.updateDom(this.config.animationSpeed);
@@ -195,8 +226,13 @@ Module.register("MMM-WallyMap", {
 			wrapper.innerHTML = '<div class="wallymap-status">Finding Wally...</div>';
 			return wrapper;
 		}
+		/* Never managed to reach the feed. Say so plainly and without alarm -
+		 * it retries on its own, and a mirror on a wall is not the place for a
+		 * stack trace. The reason stays in the log. */
 		if (this.error) {
-			wrapper.innerHTML = '<div class="wallymap-status">Wally is off the map</div>';
+			wrapper.innerHTML =
+				'<div class="wallymap-status">Wally is off the map</div>' +
+				'<div class="wallymap-substatus">no answer from neaves.au, still trying</div>';
 			return wrapper;
 		}
 		if (!this.travelling) {
@@ -257,6 +293,17 @@ Module.register("MMM-WallyMap", {
 			when.className = "wallymap-when";
 			when.textContent = this.sinceText(here.arrivedAt);
 			label.appendChild(when);
+
+			/* Holding a position while the feed is unreachable is the right
+			 * behaviour, but showing it as though it were current is not: a
+			 * stale map and a stationary Wally look identical otherwise. */
+			var stale = this.staleText();
+			if (stale) {
+				var offline = document.createElement("span");
+				offline.className = "wallymap-offline";
+				offline.textContent = stale;
+				label.appendChild(offline);
+			}
 
 			wrapper.appendChild(label);
 		}
@@ -337,6 +384,20 @@ Module.register("MMM-WallyMap", {
 
 	stopClock: function () {
 		if (this.clockTimer) { clearInterval(this.clockTimer); this.clockTimer = null; }
+	},
+
+	/**
+	 * Says how old the shown position is, but only once it is old enough to
+	 * matter. A single missed poll is noise; an hour of silence is worth saying.
+	 */
+	staleText: function () {
+		if (!this.offline || !this.lastGoodAt) return "";
+		var mins = Math.floor((Date.now() - this.lastGoodAt) / 60000);
+		if (mins < this.config.staleAfterMins) return "";
+		if (mins < 120) return "offline \u00b7 " + mins + " min old";
+		var hours = Math.round(mins / 60);
+		if (hours < 48) return "offline \u00b7 " + hours + "h old";
+		return "offline \u00b7 " + Math.round(hours / 24) + "d old";
 	},
 
 	sinceText: function (arrivedAt) {
