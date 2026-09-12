@@ -37,31 +37,28 @@ else
 fi
 ok "MMM-Remote-Control installed"
 
+# MMM-Remote-Control-Repository is deliberately not installed — upstream
+# deprecated it in Jul 2025, MMM-Remote-Control now maintains modules.json itself.
+# An existing copy on the device is left in place but no longer configured.
+
 # ════════════════════════════════════════════════════════════════════════════
-divider "MMM-Remote-Control-Repository"
+divider "CUSTOM MODULES"
 # ════════════════════════════════════════════════════════════════════════════
 
-cd "$MMDIR/modules"
-
-if [ -d "MMM-Remote-Control-Repository" ]; then
-    info "Updating..."
-    cd MMM-Remote-Control-Repository && git pull && npm install --production && cd ..
-else
-    git clone https://github.com/MMRIZE/MMM-Remote-Control-Repository.git
-    cd MMM-Remote-Control-Repository && npm install --production && cd ..
+# Every module in the repo, so adding one needs no change here. Each is
+# replaced rather than merged, otherwise a renamed file would linger.
+shopt -s nullglob
+CUSTOM=("$REPO_DIR"/modules/*/)
+shopt -u nullglob
+if [ ${#CUSTOM[@]} -eq 0 ]; then
+    echo -e "${RED}No modules found in $REPO_DIR/modules${NC}"; exit 1
 fi
-ok "MMM-Remote-Control-Repository installed"
-
-# ════════════════════════════════════════════════════════════════════════════
-divider "MMM-BTCAud (Custom Module)"
-# ════════════════════════════════════════════════════════════════════════════
-
-if [ ! -d "$REPO_DIR/modules/MMM-BTCAud" ]; then
-    echo -e "${RED}MMM-BTCAud not found at $REPO_DIR/modules/MMM-BTCAud${NC}"; exit 1
-fi
-rm -rf "$MMDIR/modules/MMM-BTCAud"
-cp -r "$REPO_DIR/modules/MMM-BTCAud" "$MMDIR/modules/"
-ok "MMM-BTCAud installed"
+for src in "${CUSTOM[@]}"; do
+    name="$(basename "$src")"
+    rm -rf "$MMDIR/modules/$name"
+    cp -r "$src" "$MMDIR/modules/"
+    ok "$name installed"
+done
 
 # ════════════════════════════════════════════════════════════════════════════
 divider "CONFIG FILES"

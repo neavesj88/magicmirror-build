@@ -11,7 +11,6 @@ let config = {
 	units: "metric",
 	modules: [
 		{ module: "alert" },
-		{ module: "MMM-Remote-Control-Repository" },
 		{
 			module: "MMM-Remote-Control",
 			config: {
@@ -63,6 +62,15 @@ let config = {
 				lon: 115.7654,
 				maxNumberOfDays: 5,
 				colored: true,
+			}
+		},
+		{
+			// Hides itself when there is no published trip, so this slot falls
+			// through to the Bitcoin price below whenever he is home.
+			module: "MMM-WallyMap",
+			position: "middle_center",
+			config: {
+				updateInterval: 15 * 60 * 1000,
 			}
 		},
 		{
