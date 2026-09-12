@@ -28,10 +28,10 @@ Module.register("MMM-WallyMap", {
 		// rather than a few abstract lines.
 		routeFill: 0.6,
 		// How long each view sits before it swaps, and the fade either side.
-		// Held to a 10s floor in startCycle — faster than that on a bathroom
-		// mirror reads as flicker rather than a transition.
+		// Both have floors (see holdDuration/fadeDuration) — anything quicker
+		// on a bathroom mirror reads as a flicker rather than a transition.
 		viewHoldMs: 12000,
-		fadeMs: 900,
+		fadeMs: 4000,
 		showTrail: true,
 		// Nudge whoever is brushing their teeth towards the travel blog. The
 		// wording comes from the site's own popup copy; this is just the URL to
@@ -91,6 +91,11 @@ Module.register("MMM-WallyMap", {
 	/** MagicMirror calls these when the module is hidden or shown again. */
 	suspend: function () { this.stopCycle(); },
 	resume: function () { if (this.canvases.length > 1) this.startCycle(); },
+
+	/* Floors, applied in one place so the CSS transition and the swap timer
+	 * can never disagree about how long a fade takes. */
+	fadeDuration: function () { return Math.max(4000, this.config.fadeMs); },
+	holdDuration: function () { return Math.max(10000, this.config.viewHoldMs); },
 
 	getHeader: function () {
 		if (this.travelling && this.tripTitle) return this.tripTitle;
@@ -166,7 +171,7 @@ Module.register("MMM-WallyMap", {
 			canvas.width = self.config.width;
 			canvas.height = self.config.height;
 			canvas.className = "wallymap-canvas";
-			canvas.style.transition = "opacity " + self.config.fadeMs + "ms ease-in-out";
+			canvas.style.transition = "opacity " + self.fadeDuration() + "ms ease-in-out";
 			canvas.style.opacity = i === 0 ? "1" : "0";
 			stage.appendChild(canvas);
 			self.canvases.push({ el: canvas, view: view });
@@ -228,8 +233,8 @@ Module.register("MMM-WallyMap", {
 			setTimeout(function () {
 				self.viewIndex = next;
 				self.canvases[next].el.style.opacity = "1";
-			}, self.config.fadeMs);
-		}, Math.max(10000, this.config.viewHoldMs) + this.config.fadeMs * 2);
+			}, self.fadeDuration());
+		}, this.holdDuration() + this.fadeDuration() * 2);
 	},
 
 	stopCycle: function () {
