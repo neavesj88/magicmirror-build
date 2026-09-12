@@ -66,9 +66,26 @@ Complete build scripts and config for a MagicMirror² smart mirror kiosk.
 ~/mm-profile.sh guest        # switch to guest profile
 ~/mm-profile.sh personal     # switch to personal profile
 ~/mm-wifi.sh "SSID" "pass"   # change WiFi
-~/mm-update.sh               # manual MM² update
+~/mm-update.sh               # pull this repo + MM² + modules, restart if changed
+~/mm-update.sh --force       # redeploy configs/modules even if nothing is new
 systemctl --user restart magicmirror  # restart
 ```
+
+### Updating
+
+The mirror pulls; nothing is pushed to it. There is no route in from outside, so
+`mm-update.sh` fetches this repo, redeploys `config/` and `modules/` through
+script 02, then updates MM² core and every git-based module, restarting once if
+anything actually moved.
+
+- **Nightly at 03:00** by cron.
+- **On demand** via the *Update Mirror* desktop icon, which runs it with
+  `--force` in a terminal that stays open so the result can be read.
+
+So a change pushed to GitHub reaches the mirror by itself. Two things it will
+not do: it never resets which profile is live (`mm-profile.sh` owns that), and
+it only reinstalls node modules when the repo actually moved, since that is not
+worth doing nightly for nothing.
 
 ## Future Ideas
 
