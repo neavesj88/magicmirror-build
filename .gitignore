@@ -1,3 +1,6 @@
 node_modules/
 *.log
 .DS_Store
+
+# screenshots pulled off the mirror for reference
+mirror-preview*.png
