@@ -171,7 +171,7 @@ function stop(key, title, days, chapterId) {
 	return Object.assign({
 		title: title,
 		arrivedAt: daysAgo(days),
-		chapterId: chapterId === undefined ? null : chapterId,
+		chapterId: chapterId === undefined ? null : String(chapterId),
 	}, PLACES[key]);
 }
 
@@ -186,7 +186,7 @@ function buildFixture(name) {
 			invite: DEFAULT_INVITE,
 			stops: [stop("munich", "Munich", 3, 1), stop("salzburg", "Salzburg", 0, 1)],
 			legs: [leg("train", "munich", "salzburg")],
-			chapters: [{ id: 1, title: "Bavaria & the Alps", subtitle: null }],
+			chapters: [{ id: "1", title: "Bavaria & the Alps", subtitle: null }],
 		};
 	}
 	if (name === "flight") {
@@ -197,8 +197,8 @@ function buildFixture(name) {
 			stops: [stop("perth", "Home", 5, 1), stop("dubai", "Dubai", 4, 1), stop("munich", "Landed in Munich", 0, 2)],
 			legs: [leg("plane", "perth", "dubai"), leg("plane", "dubai", "munich")],
 			chapters: [
-				{ id: 1, title: "The Long Way Over", subtitle: null },
-				{ id: 2, title: "Bavaria & the Alps", subtitle: null },
+				{ id: "1", title: "The Long Way Over", subtitle: null },
+				{ id: "2", title: "Bavaria & the Alps", subtitle: null },
 			],
 		};
 	}
@@ -214,12 +214,30 @@ module.exports = NodeHelper.create({
 		this.detailCache = null;
 		// Latches once the real feed has produced a stop, so canned preview data
 		// can never stand in for a live trip after that point.
+		/* Persisted, because the updater restarts MagicMirror nightly: an
+		 * in-memory latch would reset every night of the trip, after which one
+		 * malformed response could put the fixture back on screen as real. */
 		this.liveSeen = false;
+		this.liveSeenFile = path.join(CACHE_DIR, "live-seen");
+		var self = this;
+		fs.readFile(this.liveSeenFile, "utf8")
+			.then(function () { self.liveSeen = true; console.log("[MMM-WallyMap] a real trip has been seen before"); })
+			.catch(function () { /* never gone live on this machine */ });
 		console.log("[MMM-WallyMap] Node helper started");
 	},
 
 	socketNotificationReceived: function (notification, payload) {
 		if (notification === "WALLY_GET_DATA") this.fetchData(payload);
+	},
+
+	/** Remember across restarts that a real trip has been seen. */
+	markLiveSeen: function () {
+		if (this.liveSeen) return;
+		this.liveSeen = true;
+		var file = this.liveSeenFile;
+		fs.mkdir(CACHE_DIR, { recursive: true })
+			.then(function () { return fs.writeFile(file, new Date().toISOString()); })
+			.catch(function (e) { console.error("[MMM-WallyMap] could not persist liveSeen: " + e.message); });
 	},
 
 	/** The atlas never changes, so it is fetched and decoded once per process. */
@@ -349,7 +367,11 @@ module.exports = NodeHelper.create({
 		var postsRes = await fetch(config.postsUrl, { signal: AbortSignal.timeout(15000) });
 		if (!postsRes.ok) throw new Error("posts returned " + postsRes.status);
 		var posts = await postsRes.json();
-		if (!Array.isArray(posts)) posts = [];
+		/* A non-array body means something answered that was not the feed - a
+		 * Cloudflare interstitial or an error object. Treating it as an empty trip
+		 * would let test mode conclude there is no trip and put canned data back on
+		 * screen over a real one, so it is an error. */
+		if (!Array.isArray(posts)) throw new Error("posts response was not a list");
 
 		/* Coordinates are float8 in Postgres and should arrive as numbers, but a
 		 * serialiser that hands back "48.14" would otherwise fail Number.isFinite
@@ -381,7 +403,10 @@ module.exports = NodeHelper.create({
 				lat: p.lat,
 				lng: p.lng,
 				arrivedAt: p.arrivedAt,
-				chapterId: p.chapterId !== undefined ? p.chapterId : null,
+				// Stringified here and on the chapters below: these are two independently
+				// serialised endpoints, and a number-vs-numeric-string mismatch would make
+				// the chapter silently never resolve for the whole trip.
+				chapterId: (p.chapterId === undefined || p.chapterId === null) ? null : String(p.chapterId),
 			};
 		});
 
@@ -423,14 +448,15 @@ module.exports = NodeHelper.create({
 		 * the trip title they are decoration, so this is its own try and yields
 		 * an empty list on any problem rather than costing the map. The trip
 		 * endpoint is also the authoritative title; the teaser is the fallback. */
-		var chapters = [];
+		var chapters = null;   // null = fetch failed; [] = genuinely none
 		try {
 			var tripRes = await fetch(config.tripUrl, { signal: AbortSignal.timeout(10000) });
 			if (tripRes.ok) {
 				var tripData = await tripRes.json();
+				chapters = [];
 				if (Array.isArray(tripData.chapters)) {
 					chapters = tripData.chapters.map(function (c) {
-						return { id: c.id, title: c.title, subtitle: c.subtitle || null };
+						return { id: String(c.id), title: c.title, subtitle: c.subtitle || null };
 					});
 				}
 				if (tripData.trip && tripData.trip.title) tripTitle = tripData.trip.title;
@@ -481,14 +507,14 @@ module.exports = NodeHelper.create({
 				 * last known position instead. */
 				var live = await this.fetchLive(config);
 				if (live.stops.length) {
-					this.liveSeen = true;
+					this.markLiveSeen();
 					trip = live;
 				} else {
 					trip = buildFixture(config.testMode);
 				}
 			} else {
 				trip = await this.fetchLive(config);
-				if (trip.stops.length) this.liveSeen = true;
+				if (trip.stops.length) this.markLiveSeen();
 			}
 
 			var here = trip.stops[trip.stops.length - 1];
@@ -531,7 +557,7 @@ module.exports = NodeHelper.create({
 				invite: trip.invite,
 				stops: trip.stops,
 				legs: trip.legs,
-				chapters: trip.chapters || [],
+				chapters: trip.chapters,
 				local: local,
 				detail: detail,
 				/* The atlas is static, so it is sent once and then omitted -

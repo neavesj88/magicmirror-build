@@ -153,7 +153,9 @@ Module.register("MMM-WallyMap", {
 			this.local = payload.local;
 			this.stops = payload.stops || [];
 			this.legs = payload.legs || [];
-			this.chapters = payload.chapters || [];
+			// null means the trip fetch failed, so keep the chapters already held
+			// rather than dropping the name for that poll.
+			if (payload.chapters) this.chapters = payload.chapters;
 			// null means unchanged, so keep the outlines already held.
 			if (payload.rings) this.rings = payload.rings;
 			if (payload.coast) this.coast = payload.coast;
@@ -208,6 +210,13 @@ Module.register("MMM-WallyMap", {
 	/** MagicMirror calls these when the module is hidden or shown again. */
 	suspend: function () { this.stopCycle(); this.stopClock(); },
 	resume: function () {
+		/* A suspend landing mid-fade leaves the outgoing canvas transparent and
+		 * the incoming one never faded in, so without this the map can come back
+		 * blank and stay blank until the next swap. */
+		var visible = this.viewIndex;
+		this.canvases.forEach(function (c, i) {
+			c.el.style.opacity = (i === visible) ? "1" : "0";
+		});
 		if (this.canvases.length > 1) this.startCycle();
 		if (this.clockEl) this.startClock();
 	},
@@ -309,8 +318,10 @@ Module.register("MMM-WallyMap", {
 		 * and the post title says what today was. Each is skipped when absent,
 		 * and the post title is skipped when it merely repeats the place name
 		 * already shown under the map. */
+		var chapterShown = false, postTitleShown = false;
 		var chapter = this.chapterTitle();
 		if (chapter) {
+			chapterShown = true;
 			var chapterEl = document.createElement("div");
 			chapterEl.className = "wallymap-chapter";
 			chapterEl.textContent = chapter;
@@ -323,21 +334,30 @@ Module.register("MMM-WallyMap", {
 				postTitle.className = "wallymap-posttitle";
 				postTitle.textContent = t;
 				wrapper.appendChild(postTitle);
+				postTitleShown = true;
 			}
 		}
+
+		/* The chapter and post-title lines sit above the map, and this block was
+		 * sized to fit exactly between the calendar and the news ticker. The region
+		 * is centre-anchored, so extra content height pushes the TOP edge up into
+		 * the calendar as well as the bottom down into the ticker. Take their
+		 * height out of the canvas so the block totals the same either way. */
+		var reserved = (chapterShown ? 30 : 0) + (postTitleShown ? 42 : 0);
+		var canvasHeight = Math.max(260, this.config.height - reserved);
 
 		var startIndex = (prevCount === views.length && prevIndex < views.length) ? prevIndex : 0;
 
 		var stage = document.createElement("div");
 		stage.className = "wallymap-stage";
 		stage.style.width = this.config.width + "px";
-		stage.style.height = this.config.height + "px";
+		stage.style.height = canvasHeight + "px";
 
 		var self = this;
 		views.forEach(function (view, i) {
 			var canvas = document.createElement("canvas");
 			canvas.width = self.config.width;
-			canvas.height = self.config.height;
+			canvas.height = canvasHeight;
 			canvas.className = "wallymap-canvas";
 			canvas.style.transition = "opacity " + self.fadeDuration() + "ms ease-in-out";
 			canvas.style.opacity = i === startIndex ? "1" : "0";
@@ -592,7 +612,18 @@ Module.register("MMM-WallyMap", {
 
 		var mw = this.config.minimapWidth, mh = this.config.minimapHeight;
 		var m = this.config.minimapMargin;
-		var x0 = w - mw - m, y0 = m;
+		/* The inset paints an opaque backdrop, so in a fixed corner it can cover
+		 * the current-position marker - the one thing that must never be hidden.
+		 * Pick the corner furthest from it. */
+		var hp = this.lastMarkerXY || [w / 2, h / 2];
+		var corners = [[w - mw - m, m], [m, m], [w - mw - m, h - mh - m], [m, h - mh - m]];
+		var best = corners[0], bestD = -1;
+		corners.forEach(function (c) {
+			var cx = c[0] + mw / 2, cy = c[1] + mh / 2;
+			var d = (cx - hp[0]) * (cx - hp[0]) + (cy - hp[1]) * (cy - hp[1]);
+			if (d > bestD) { bestD = d; best = c; }
+		});
+		var x0 = best[0], y0 = best[1];
 
 		var span = this.config.minimapSpanDeg;
 		var kx = Math.max(0.15, Math.cos(here.lat * Math.PI / 180));
@@ -771,14 +802,21 @@ Module.register("MMM-WallyMap", {
 		for (var i = 0; i < this.stops.length - 1; i++) {
 			var p = project(this.stops[i].lng, this.stops[i].lat);
 			ctx.beginPath();
-			ctx.arc(p[0], p[1], 2.5, 0, Math.PI * 2);
-			ctx.fillStyle = col(0.85);
+			/* Black-filled and outlined: the route line is now 5px and fully opaque,
+			 * so a 2.5px white dot on top of it vanished into the line. */
+			ctx.arc(p[0], p[1], 7, 0, Math.PI * 2);
+			ctx.fillStyle = "rgba(0,0,0,0.9)";
 			ctx.fill();
+			ctx.lineWidth = 2.5;
+			ctx.strokeStyle = col(0.95);
+			ctx.stroke();
 		}
 
 		// Where he is now: filled dot inside a ring so it reads at a glance.
 		var last = this.stops[this.stops.length - 1];
 		var c = project(last.lng, last.lat);
+		// Remembered so the inset can avoid covering it.
+		this.lastMarkerXY = c;
 		ctx.beginPath();
 		ctx.arc(c[0], c[1], 11, 0, Math.PI * 2);
 		ctx.fillStyle = col(1);
