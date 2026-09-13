@@ -7,9 +7,17 @@ module.exports = NodeHelper.create({
 	fetchData: async function (config) {
 		try {
 			var priceRes = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=" + config.coin + "&vs_currencies=" + config.currency + "&include_24hr_change=true");
+			if (!priceRes.ok) throw new Error("price returned " + priceRes.status);
 			var priceData = await priceRes.json();
-			var price = priceData[config.coin][config.currency];
-			var change24h = priceData[config.coin][config.currency + "_24h_change"];
+			/* ~8000 calls over a month-long trip, so a rate limit or an error
+			 * body is a matter of when. Indexing straight into the response
+			 * threw on the missing key, which took the whole poll down. */
+			var quote = priceData && priceData[config.coin];
+			var price = quote ? Number(quote[config.currency]) : NaN;
+			if (!Number.isFinite(price)) throw new Error("no usable price in response");
+			var change24h = quote && Number.isFinite(Number(quote[config.currency + "_24h_change"]))
+				? Number(quote[config.currency + "_24h_change"])
+				: null;
 			var chartRes = await fetch("https://api.coingecko.com/api/v3/coins/" + config.coin + "/market_chart?vs_currency=" + config.currency + "&days=" + config.days);
 			var chartData = await chartRes.json();
 			var change7d = null;

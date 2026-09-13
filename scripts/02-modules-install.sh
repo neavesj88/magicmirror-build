@@ -53,11 +53,25 @@ shopt -u nullglob
 if [ ${#CUSTOM[@]} -eq 0 ]; then
     echo -e "${RED}No modules found in $REPO_DIR/modules${NC}"; exit 1
 fi
+# Staged then swapped, never deleted-then-copied. This runs unattended from the
+# nightly cron on a box with no SSH: a copy that dies midway between the rm and
+# the cp (disk full, power cut, set -e on any failure) would leave the module
+# missing or half-written, and MagicMirror would come back up without it until
+# somebody physically intervened. Staging means a failure leaves the previous
+# working copy exactly where it was.
 for src in "${CUSTOM[@]}"; do
     name="$(basename "$src")"
-    rm -rf "$MMDIR/modules/$name"
-    cp -r "$src" "$MMDIR/modules/"
-    ok "$name installed"
+    staged="$MMDIR/modules/.$name.new"
+    rm -rf "$staged"
+    if cp -r "$src" "$staged"; then
+        rm -rf "$MMDIR/modules/$name"
+        mv "$staged" "$MMDIR/modules/$name"
+        ok "$name installed"
+    else
+        rm -rf "$staged"
+        echo -e "${RED}$name: copy failed, left the existing copy in place${NC}"
+        exit 1
+    fi
 done
 
 # ════════════════════════════════════════════════════════════════════════════

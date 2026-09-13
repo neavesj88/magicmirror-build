@@ -22,7 +22,7 @@ divider "CONFIG PORTAL SERVER"
 
 cat > "$PORTAL_DIR/server.js" << 'SERVEREOF'
 const http = require("http");
-const { execSync, exec } = require("child_process");
+const { execSync, execFileSync, exec } = require("child_process");
 const url = require("url");
 const os = require("os");
 
@@ -51,7 +51,7 @@ function getIP() {
 }
 
 function getSSID() {
-	try { return execSync(`iwgetid -r ${WIFI_IFACE} 2>/dev/null`).toString().trim(); }
+	try { return execFileSync("iwgetid", ["-r", WIFI_IFACE], { stdio: "pipe" }).toString().trim(); }
 	catch(e) { return "Not connected"; }
 }
 
@@ -61,7 +61,9 @@ function getHostname() {
 
 function scanWifi() {
 	try {
-		const raw = execSync(`nmcli -t -f SSID,SIGNAL,SECURITY device wifi list ifname ${WIFI_IFACE} --rescan yes 2>/dev/null`).toString();
+		const raw = execFileSync("nmcli",
+			["-t", "-f", "SSID,SIGNAL,SECURITY", "device", "wifi", "list", "ifname", WIFI_IFACE, "--rescan", "yes"],
+			{ stdio: "pipe" }).toString();
 		const seen = new Set();
 		return raw.split("\n").filter(l => l.trim())
 			.map(l => { const p = l.split(":"); return { ssid: p[0], signal: p[1], security: p.slice(2).join(":") }; })
@@ -172,13 +174,29 @@ const server = http.createServer((req, res) => {
 			const dns = params.get("dns") || "8.8.8.8,8.8.4.4";
 			if (!ssid || !password) { res.end(htmlPage(`<div class="msg err">SSID and password required</div><a href="/">Back</a>`)); return; }
 			try {
-				try { execSync(`nmcli connection delete "${ssid}" 2>/dev/null`); } catch(e) {}
-				try { execSync(`nmcli connection down Hotspot 2>/dev/null`); } catch(e) {}
-				try { execSync(`nmcli connection delete Hotspot 2>/dev/null`); } catch(e) {}
-				execSync(`nmcli device wifi connect "${ssid}" password "${password}" ifname ${WIFI_IFACE}`);
+				// execFileSync with an argument array, never a template string:
+				// these values come straight off an unauthenticated form on the
+				// LAN, and interpolating them into a shell command made the
+				// portal an arbitrary-command endpoint running as the mirror
+				// user, which has passwordless sudo for reboot and shutdown.
+				const nmcli = (args) => execFileSync("nmcli", args, { stdio: "pipe" });
+				const IPV4 = /^(\d{1,3}\.){3}\d{1,3}$/;
+				const dnsList = String(dns).split(",").map(s => s.trim()).filter(s => IPV4.test(s));
+				if (useStatic && ip && gateway && (!IPV4.test(ip) || !IPV4.test(gateway))) {
+					res.end(htmlPage(`<div class="msg err">Static IP and gateway must be IPv4 addresses</div><a href="/">Back</a>`));
+					return;
+				}
+				try { nmcli(["connection", "delete", ssid]); } catch(e) {}
+				try { nmcli(["connection", "down", "Hotspot"]); } catch(e) {}
+				try { nmcli(["connection", "delete", "Hotspot"]); } catch(e) {}
+				nmcli(["device", "wifi", "connect", ssid, "password", password, "ifname", WIFI_IFACE]);
 				if (useStatic && ip && gateway) {
-					execSync(`nmcli connection modify "${ssid}" ipv4.method manual ipv4.addresses "${ip}/24" ipv4.gateway "${gateway}" ipv4.dns "${dns}"`);
-					execSync(`nmcli connection up "${ssid}"`);
+					nmcli(["connection", "modify", ssid,
+						"ipv4.method", "manual",
+						"ipv4.addresses", `${ip}/24`,
+						"ipv4.gateway", gateway,
+						"ipv4.dns", dnsList.join(",") || "8.8.8.8,8.8.4.4"]);
+					nmcli(["connection", "up", ssid]);
 				}
 				const newIP = useStatic && ip ? ip : getIP();
 				res.end(htmlPage(`
@@ -238,13 +256,41 @@ start_hotspot() {
 	echo "$(date): Hotspot active — $HOTSPOT_SSID (pass: $HOTSPOT_PASS) → http://192.168.4.1:8081"
 }
 
+# How many checks to sit in hotspot mode before trying the real network again.
+RETRY_AFTER=10
+
 sleep 10
 is_wifi_connected || start_hotspot
 
+cycles=0
 while true; do
 	sleep "$CHECK_INTERVAL"
-	if ! is_hotspot_active && ! is_wifi_connected; then
+
+	if is_hotspot_active; then
+		# Without this the hotspot was a one-way door: once the router blipped
+		# the mirror served its own AP and never looked at the house WiFi again,
+		# so it would sit offline for the rest of a trip showing a frozen map,
+		# with nobody able to reach it. Drop the AP periodically and retry.
+		cycles=$((cycles + 1))
+		if [ "$cycles" -ge "$RETRY_AFTER" ]; then
+			cycles=0
+			echo "$(date): retrying the saved WiFi"
+			nmcli connection down Hotspot 2>/dev/null || true
+			sleep 5
+			nmcli device connect "$WIFI_IFACE" 2>/dev/null || true
+			sleep 10
+			if is_wifi_connected; then
+				echo "$(date): back on WiFi - $(iwgetid -r "$WIFI_IFACE" 2>/dev/null)"
+			else
+				echo "$(date): still no WiFi, hotspot back up"
+				start_hotspot
+			fi
+		fi
+	elif ! is_wifi_connected; then
+		cycles=0
 		start_hotspot
+	else
+		cycles=0
 	fi
 done
 WATCHEOF

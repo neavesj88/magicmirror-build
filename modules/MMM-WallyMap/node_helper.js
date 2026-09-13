@@ -169,28 +169,41 @@ function stop(key, title, days) {
 	return Object.assign({ title: title, arrivedAt: daysAgo(days) }, PLACES[key]);
 }
 
-var FIXTURES = {
-	// Ground hop: one view, auto-scaled to the ground covered.
-	local: {
-		tripTitle: "Test: Munich to Salzburg",
-		invite: DEFAULT_INVITE,
-		stops: [stop("munich", "Munich", 3), stop("salzburg", "Salzburg", 0)],
-		legs: [leg("train", "munich", "salzburg")],
-	},
-	// Long haul: wide view of the whole journey, alternating with the close one.
-	flight: {
-		tripTitle: "Test: Perth to Munich",
-		invite: DEFAULT_INVITE,
-		stops: [stop("perth", "Home", 5), stop("dubai", "Dubai", 4), stop("munich", "Munich", 0)],
-		legs: [leg("plane", "perth", "dubai"), leg("plane", "dubai", "munich")],
-	},
-};
+/* Built per request, not once at load. The node helper runs for weeks between
+ * restarts, so timestamps frozen at startup would drift: the canned trip would
+ * slowly claim "12 days here" the longer the process had been up. */
+function buildFixture(name) {
+	if (name === "local") {
+		// Ground hop: one view, auto-scaled to the ground covered.
+		return {
+			tripTitle: "Test: Munich to Salzburg",
+			invite: DEFAULT_INVITE,
+			stops: [stop("munich", "Munich", 3), stop("salzburg", "Salzburg", 0)],
+			legs: [leg("train", "munich", "salzburg")],
+		};
+	}
+	if (name === "flight") {
+		// Long haul: wide view of the whole journey, alternating with the close one.
+		return {
+			tripTitle: "Test: Perth to Munich",
+			invite: DEFAULT_INVITE,
+			stops: [stop("perth", "Home", 5), stop("dubai", "Dubai", 4), stop("munich", "Munich", 0)],
+			legs: [leg("plane", "perth", "dubai"), leg("plane", "dubai", "munich")],
+		};
+	}
+	return null;
+}
+
+var FIXTURES = { local: true, flight: true };
 
 module.exports = NodeHelper.create({
 	start: function () {
 		this.rings = null;
 		this.coast = null;
 		this.detailCache = null;
+		// Latches once the real feed has produced a stop, so canned preview data
+		// can never stand in for a live trip after that point.
+		this.liveSeen = false;
 		console.log("[MMM-WallyMap] Node helper started");
 	},
 
@@ -256,6 +269,10 @@ module.exports = NodeHelper.create({
 		if (this.detailCache && this.detailCache.key === key) return this.detailCache.detail;
 
 		var places = [], rivers = [], borders = [];
+		// A layer that failed must not be cached as "no features here" - that
+		// would freeze an empty map for this stop until he moved on, with no
+		// retry even once the CDN came back.
+		var ok = { places: false, rivers: false, borders: false };
 
 		try {
 			var p = await this.loadLayer("places");
@@ -271,6 +288,7 @@ module.exports = NodeHelper.create({
 			// Biggest first, so the renderer can cap the count and keep the
 			// places that actually orient someone.
 			places.sort(function (a, b) { return b.pop - a.pop; });
+			ok.places = true;
 		} catch (e) {
 			console.error("[MMM-WallyMap] places layer:", e.message);
 		}
@@ -281,6 +299,7 @@ module.exports = NodeHelper.create({
 				if (!f.geometry || !geometryInBox(f.geometry, box)) return;
 				linesOf(f.geometry).forEach(function (line) { rivers.push(thin(line, THIN_DEG)); });
 			});
+			ok.rivers = true;
 		} catch (e) {
 			console.error("[MMM-WallyMap] rivers layer:", e.message);
 		}
@@ -291,6 +310,7 @@ module.exports = NodeHelper.create({
 				if (!f.geometry || !geometryInBox(f.geometry, box)) return;
 				linesOf(f.geometry).forEach(function (line) { borders.push(thin(line, THIN_DEG)); });
 			});
+			ok.borders = true;
 		} catch (e) {
 			console.error("[MMM-WallyMap] borders layer:", e.message);
 		}
@@ -301,7 +321,15 @@ module.exports = NodeHelper.create({
 		places = places.slice(0, 40);
 
 		var detail = { places: places, rivers: rivers, borders: borders };
-		this.detailCache = { key: key, detail: detail };
+		// Only remember a complete result. A partial one is served this once and
+		// retried next poll, so a CDN outage costs detail for 15 minutes rather
+		// than for as long as he stays in that city.
+		if (ok.places && ok.rivers && ok.borders) {
+			this.detailCache = { key: key, detail: detail };
+		} else {
+			console.error("[MMM-WallyMap] detail incomplete, not caching: " +
+				JSON.stringify(ok));
+		}
 		return detail;
 	},
 
@@ -312,32 +340,53 @@ module.exports = NodeHelper.create({
 		var posts = await postsRes.json();
 		if (!Array.isArray(posts)) posts = [];
 
-		// Newest last, so the final entry is where he is now.
-		posts.sort(function (a, b) { return new Date(a.arrivedAt) - new Date(b.arrivedAt); });
+		/* Coordinates are float8 in Postgres and should arrive as numbers, but a
+		 * serialiser that hands back "48.14" would otherwise fail Number.isFinite
+		 * and silently drop the entire trip. Coerce, then validate. */
+		var usable = posts.filter(function (p) {
+			if (!p) return false;
+			p.lat = Number(p.lat);
+			p.lng = Number(p.lng);
+			return Number.isFinite(p.lat) && Number.isFinite(p.lng);
+		});
 
-		var stops = posts
-			.filter(function (p) { return Number.isFinite(p.lat) && Number.isFinite(p.lng); })
-			.map(function (p) {
-				return {
-					title: p.title,
-					locationName: p.locationName,
-					lat: p.lat,
-					lng: p.lng,
-					arrivedAt: p.arrivedAt,
-				};
-			});
+		/* Newest last, so the final entry is where he is now - which makes this
+		 * sort load-bearing rather than cosmetic. An unparseable arrivedAt makes
+		 * the comparator return NaN, which is neither < nor > 0, so the engine
+		 * leaves that post wherever the API happened to put it: the wrong stop
+		 * then becomes "here", and the map centres, labels and fetches weather
+		 * for somewhere he is not. Posts without a usable date are pushed to the
+		 * front instead, so they can never masquerade as the latest. */
+		var when = function (p) {
+			var t = new Date(p.arrivedAt).getTime();
+			return Number.isFinite(t) ? t : -Infinity;
+		};
+		usable.sort(function (a, b) { return when(a) - when(b); });
 
+		var stops = usable.map(function (p) {
+			return {
+				title: p.title,
+				locationName: p.locationName,
+				lat: p.lat,
+				lng: p.lng,
+				arrivedAt: p.arrivedAt,
+			};
+		});
+
+		// Legs come only from posts that survived validation, otherwise the map
+		// draws route lines to stops it refused to plot.
 		var legs = [];
-		posts.forEach(function (p) {
+		usable.forEach(function (p) {
 			(p.legs || [])
 				.slice()
-				.sort(function (a, b) { return a.sortOrder - b.sortOrder; })
+				.sort(function (a, b) { return (a.sortOrder || 0) - (b.sortOrder || 0); })
 				.forEach(function (l) {
-					if ([l.fromLat, l.fromLng, l.toLat, l.toLng].every(Number.isFinite)) {
+					var c = [Number(l.fromLat), Number(l.fromLng), Number(l.toLat), Number(l.toLng)];
+					if (c.every(Number.isFinite)) {
 						legs.push({
 							mode: l.mode,
-							fromLat: l.fromLat, fromLng: l.fromLng,
-							toLat: l.toLat, toLng: l.toLng,
+							fromLat: c[0], fromLng: c[1],
+							toLat: c[2], toLng: c[3],
 						});
 					}
 				});
@@ -388,16 +437,26 @@ module.exports = NodeHelper.create({
 			 * has to remember to turn it off, and it cannot be turned off from
 			 * the road anyway. */
 			var trip;
-			if (config.testMode && FIXTURES[config.testMode]) {
-				trip = FIXTURES[config.testMode];
-				try {
-					var live = await this.fetchLive(config);
-					if (live.stops.length) trip = live;
-				} catch (e) {
-					console.error("[MMM-WallyMap] live feed while previewing:", e.message);
+			if (config.testMode && FIXTURES[config.testMode] && !this.liveSeen) {
+				/* Preview only until the real trip exists. Crucially, a failure
+				 * here must NOT quietly substitute canned data: once he is
+				 * travelling, a Cloudflare blip would otherwise replace his real
+				 * position with a fabricated one, sent as an ordinary successful
+				 * update - no error, no stale marker, indistinguishable from the
+				 * truth, and flipping back and forth poll by poll. So the fixture
+				 * is only ever used while the feed has genuinely never produced a
+				 * stop; after that, errors propagate and the front end holds the
+				 * last known position instead. */
+				var live = await this.fetchLive(config);
+				if (live.stops.length) {
+					this.liveSeen = true;
+					trip = live;
+				} else {
+					trip = buildFixture(config.testMode);
 				}
 			} else {
 				trip = await this.fetchLive(config);
+				if (trip.stops.length) this.liveSeen = true;
 			}
 
 			var here = trip.stops[trip.stops.length - 1];
@@ -409,7 +468,14 @@ module.exports = NodeHelper.create({
 				catch (e) { console.error("[MMM-WallyMap] Local conditions:", e.message); }
 			}
 
-			if (trip.stops.length) await this.getAtlas(config.atlasUrl);
+			/* An atlas blip must not cost the whole poll. Unguarded, a Cloudflare
+			 * hiccup on neaves.au threw away stops, legs and weather that had
+			 * already been fetched successfully and turned the update into an
+			 * error. Outlines are the decoration; the position is the point. */
+			if (trip.stops.length) {
+				try { await this.getAtlas(config.atlasUrl); }
+				catch (e) { console.error("[MMM-WallyMap] atlas:", e.message); }
+			}
 
 			/* Detail is for the close view, which is always around where he is
 			 * now, so the box follows the current stop rather than the whole

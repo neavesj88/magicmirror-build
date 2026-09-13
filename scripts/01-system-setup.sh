@@ -390,6 +390,8 @@ MMDIR="$HOME/MagicMirror"
 BUILD_REPO="$HOME/magicmirror-build"
 BUILD_URL="https://github.com/neavesj88/magicmirror-build.git"
 CHANGED=0
+# "dir|pre-pull-hash" per updated repo, so a failed start can be undone.
+ROLLBACK=""
 
 # --force redeploys the configs and modules even when nothing new was pushed,
 # which is what the desktop icon wants: clicking it should always apply.
@@ -425,8 +427,18 @@ update_repo() {
     fi
     log "  $label: ${before:0:8} -> ${after:0:8}"
     if [ -f package.json ]; then
-        npm install --omit=dev >> "$LOG" 2>&1 || log "  $label: npm install FAILED"
+        # A failed npm install used to still set CHANGED, so the mirror was
+        # restarted into half-installed dependencies and came back broken. Put
+        # the repo back where it was instead and leave the working tree alone.
+        if ! npm install --omit=dev >> "$LOG" 2>&1; then
+            log "  $label: npm install FAILED, rolling back to ${before:0:8}"
+            git reset --hard "$before" >> "$LOG" 2>&1
+            npm install --omit=dev >> "$LOG" 2>&1 || log "  $label: rollback npm also failed"
+            return 0
+        fi
     fi
+    # Remembered so a failed start can put everything back.
+    ROLLBACK="$ROLLBACK$dir|$before"$'\n'
     CHANGED=1
 }
 
@@ -475,12 +487,52 @@ for d in "$MMDIR"/modules/*/; do
     update_repo "$d" "$(basename "$d")"
 done
 
-if [ "$CHANGED" = "1" ]; then
-    log "Restarting MagicMirror..."
-    systemctl --user restart magicmirror >> "$LOG" 2>&1
-    log "Done - updates applied."
-else
+if [ "$CHANGED" != "1" ]; then
     log "Done - nothing to update."
+    exit 0
+fi
+
+log "Restarting MagicMirror..."
+systemctl --user restart magicmirror >> "$LOG" 2>&1
+
+# Did it actually come back? This runs at 03:00 with nobody able to look, and
+# the core is pulled from upstream master, so "the update ran" is not the same
+# as "the mirror still works". Give it time to boot Electron, then check the
+# unit is up and the web server is actually answering.
+healthy() {
+    systemctl --user is-active --quiet magicmirror || return 1
+    command -v curl >/dev/null 2>&1 || return 0
+    curl -fsS -m 5 -o /dev/null "http://127.0.0.1:8080" 2>/dev/null
+}
+
+OK=0
+for _ in 1 2 3 4 5 6; do
+    sleep 10
+    if healthy; then OK=1; break; fi
+done
+
+if [ "$OK" = "1" ]; then
+    log "Done - updates applied, mirror healthy."
+    exit 0
+fi
+
+# Unhealthy. Put every repo that moved back where it was and restart again -
+# a stale mirror is recoverable, a dead one on a bathroom wall is not.
+log "MIRROR DID NOT COME BACK - rolling back"
+while IFS='|' read -r dir hash; do
+    [ -n "$dir" ] || continue
+    cd "$dir" 2>/dev/null || continue
+    log "  reverting $(basename "$dir") to ${hash:0:8}"
+    git reset --hard "$hash" >> "$LOG" 2>&1
+    [ -f package.json ] && npm install --omit=dev >> "$LOG" 2>&1
+done <<< "$ROLLBACK"
+
+systemctl --user restart magicmirror >> "$LOG" 2>&1
+sleep 20
+if healthy; then
+    log "Done - rolled back, mirror healthy again."
+else
+    log "Done - ROLLED BACK BUT STILL UNHEALTHY, needs a human."
 fi
 EOF
 chmod +x ~/mm-update.sh

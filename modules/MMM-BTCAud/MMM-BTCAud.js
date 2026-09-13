@@ -58,16 +58,16 @@ Module.register("MMM-BTCAud", {
 		if (this.config.showChange) {
 			var changeDiv = document.createElement("div");
 			changeDiv.className = "btcaud-changes";
-			if (this.change24h !== null) {
+			if (typeof this.change24h === "number" && isFinite(this.change24h)) {
 				var c24 = document.createElement("span");
 				c24.className = "btcaud-change";
-				c24.textContent = "24h: " + (this.change24h >= 0 ? "▲" : "▼") + " " + Math.abs(this.change24h.toFixed(1)) + "%";
+				c24.textContent = "24h: " + (this.change24h >= 0 ? "▲" : "▼") + " " + Math.abs(this.change24h).toFixed(1) + "%";
 				changeDiv.appendChild(c24);
 			}
-			if (this.change7d !== null) {
+			if (typeof this.change7d === "number" && isFinite(this.change7d)) {
 				var c7 = document.createElement("span");
 				c7.className = "btcaud-change";
-				c7.textContent = "7d: " + (this.change7d >= 0 ? "▲" : "▼") + " " + Math.abs(this.change7d.toFixed(1)) + "%";
+				c7.textContent = "7d: " + (this.change7d >= 0 ? "▲" : "▼") + " " + Math.abs(this.change7d).toFixed(1) + "%";
 				changeDiv.appendChild(c7);
 			}
 			wrapper.appendChild(changeDiv);
