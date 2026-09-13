@@ -20,8 +20,14 @@ Module.register("MMM-WallyMap", {
 		postsUrl: "https://neaves.au/api/travel/posts",
 		currentUrl: "https://neaves.au/api/travel/current",
 		atlasUrl: "https://neaves.au/geo/countries-110m.json",
-		width: 400,
-		height: 420,
+		// The panel is 1080 wide in portrait, so the old 400px canvas was a
+		// postcard in the middle of it.
+		width: 880,
+		height: 900,
+		// Hidden while a trip is showing, and shown again once he is home, so
+		// the slot is never both at once and nothing has to be reconfigured
+		// when the trip ends.
+		hideWhileTravelling: ["MMM-BTCAud"],
 		// Floor for a trip that includes a flight, where the wide view is the
 		// whole journey and wants room around it.
 		minSpanDeg: 8,
@@ -58,13 +64,13 @@ Module.register("MMM-WallyMap", {
 		// about 50 degrees wide. Wider than this and it starts showing Africa,
 		// which costs the recognisable shape without adding anything.
 		minimapSpanDeg: 28,
-		minimapWidth: 116,
-		minimapHeight: 94,
-		minimapMargin: 10,
+		minimapWidth: 210,
+		minimapHeight: 170,
+		minimapMargin: 16,
 		// How long each view sits before it swaps, and the fade either side.
 		// Both have floors (see holdDuration/fadeDuration) - anything quicker
 		// on a bathroom mirror reads as a flicker rather than a transition.
-		viewHoldMs: 12000,
+		viewHoldMs: 20000,
 		fadeMs: 4000,
 		showTrail: true,
 		// How long the feed must be unreachable before the held position is
@@ -143,6 +149,7 @@ Module.register("MMM-WallyMap", {
 			// Nothing published means he is home - give the space back.
 			if (this.travelling) { this.show(this.config.animationSpeed); }
 			else { this.hide(this.config.animationSpeed); }
+			this.setNeighbours(this.travelling);
 			this.updateDom(this.config.animationSpeed);
 		} else if (notification === "WALLY_ERROR") {
 			/* A failed poll must not wipe a working map. The mirror runs
@@ -162,6 +169,26 @@ Module.register("MMM-WallyMap", {
 		}
 	},
 
+	/**
+	 * Takes the slot over while a trip is on. The Bitcoin price sits at the same
+	 * position, so without this both are on screen at once; with it, the price
+	 * steps aside for the map and comes back on its own when the trip ends -
+	 * no config edit needed from the road or after landing.
+	 *
+	 * The lock string means only this module can reverse what it did.
+	 */
+	setNeighbours: function (travelling) {
+		var names = this.config.hideWhileTravelling || [];
+		if (!names.length || typeof MM === "undefined") return;
+		var opts = { lockString: this.identifier };
+		var speed = this.config.animationSpeed;
+		MM.getModules().enumerate(function (m) {
+			if (names.indexOf(m.name) === -1) return;
+			if (travelling) m.hide(speed, opts);
+			else m.show(speed, opts);
+		});
+	},
+
 	/** MagicMirror calls these when the module is hidden or shown again. */
 	suspend: function () { this.stopCycle(); this.stopClock(); },
 	resume: function () {
@@ -172,7 +199,7 @@ Module.register("MMM-WallyMap", {
 	/* Floors, applied in one place so the CSS transition and the swap timer
 	 * can never disagree about how long a fade takes. */
 	fadeDuration: function () { return Math.max(4000, this.config.fadeMs); },
-	holdDuration: function () { return Math.max(10000, this.config.viewHoldMs); },
+	holdDuration: function () { return Math.max(15000, this.config.viewHoldMs); },
 
 	getHeader: function () {
 		if (this.travelling && this.tripTitle) return this.tripTitle;
@@ -514,7 +541,7 @@ Module.register("MMM-WallyMap", {
 
 		var p = project(here.lng, here.lat);
 		ctx.beginPath();
-		ctx.arc(p[0], p[1], 2.5, 0, Math.PI * 2);
+		ctx.arc(p[0], p[1], 3.5, 0, Math.PI * 2);
 		ctx.fillStyle = col(1);
 		ctx.fill();
 		ctx.beginPath();
@@ -556,17 +583,17 @@ Module.register("MMM-WallyMap", {
 			.filter(function (p) { return onRoute.indexOf(String(p.name).toLowerCase()) === -1; })
 			.slice(0, this.config.maxPlaceLabels);
 
-		ctx.font = "10px sans-serif";
+		ctx.font = "15px sans-serif";
 		ctx.textAlign = "left";
 		ctx.textBaseline = "middle";
 		places.forEach(function (p) {
 			var xy = project(p.lng, p.lat);
 			ctx.beginPath();
-			ctx.arc(xy[0], xy[1], 1.6, 0, Math.PI * 2);
+			ctx.arc(xy[0], xy[1], 2.4, 0, Math.PI * 2);
 			ctx.fillStyle = col(0.5);
 			ctx.fill();
 			ctx.fillStyle = col(0.45);
-			ctx.fillText(p.name, xy[0] + 5, xy[1]);
+			ctx.fillText(p.name, xy[0] + 7, xy[1]);
 		});
 	},
 
@@ -580,7 +607,7 @@ Module.register("MMM-WallyMap", {
 		var self = this;
 		var ends = [this.stops[0], this.stops[this.stops.length - 1]];
 
-		ctx.font = "13px sans-serif";
+		ctx.font = "21px sans-serif";
 		ctx.textBaseline = "middle";
 		ends.forEach(function (s) {
 			var xy = project(s.lng, s.lat);
@@ -588,7 +615,7 @@ Module.register("MMM-WallyMap", {
 			// Flip the label inboard when the stop sits near the right edge.
 			var right = xy[0] > w * 0.62;
 			ctx.textAlign = right ? "right" : "left";
-			var x = xy[0] + (right ? -13 : 13);
+			var x = xy[0] + (right ? -18 : 18);
 			ctx.fillStyle = col(0.95);
 			ctx.fillText(name, x, xy[1]);
 		});
@@ -661,11 +688,11 @@ Module.register("MMM-WallyMap", {
 		var last = this.stops[this.stops.length - 1];
 		var c = project(last.lng, last.lat);
 		ctx.beginPath();
-		ctx.arc(c[0], c[1], 4.5, 0, Math.PI * 2);
+		ctx.arc(c[0], c[1], 6.5, 0, Math.PI * 2);
 		ctx.fillStyle = col(1);
 		ctx.fill();
 		ctx.beginPath();
-		ctx.arc(c[0], c[1], 9, 0, Math.PI * 2);
+		ctx.arc(c[0], c[1], 13, 0, Math.PI * 2);
 		ctx.lineWidth = 1.5;
 		ctx.strokeStyle = col(0.7);
 		ctx.stroke();
