@@ -1,4 +1,6 @@
 .wallymap-wrapper { text-align: center; }
+.wallymap-chapter { font-size: 20px; color: inherit; opacity: 0.55; letter-spacing: 3px;
+  text-transform: uppercase; margin-bottom: 2px; }
 .wallymap-posttitle { font-size: 26px; color: inherit; opacity: 0.8; font-weight: 300;
   letter-spacing: 1px; margin-bottom: 8px; }
 .wallymap-status { color: inherit; font-size: 14px; opacity: 0.5; }
