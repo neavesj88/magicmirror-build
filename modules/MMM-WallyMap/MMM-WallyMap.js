@@ -31,6 +31,11 @@ Module.register("MMM-WallyMap", {
 		// the slot is never both at once and nothing has to be reconfigured
 		// when the trip ends.
 		hideWhileTravelling: ["MMM-BTCAud"],
+		/* MagicMirror stacks middle_center straight after the top region
+		 * rather than centring it in what is left, so the block sat high with
+		 * dead space above the news ticker. This drops it into the middle of
+		 * the free band. Raise it to move the map down, lower it to move up. */
+		offsetTopPx: 150,
 		// Floor for a trip that includes a flight, where the wide view is the
 		// whole journey and wants room around it.
 		minSpanDeg: 8,
@@ -251,6 +256,7 @@ Module.register("MMM-WallyMap", {
 
 		var wrapper = document.createElement("div");
 		wrapper.className = "wallymap-wrapper";
+		wrapper.style.marginTop = this.config.offsetTopPx + "px";
 
 		if (!this.loaded) {
 			wrapper.innerHTML = '<div class="wallymap-status">Finding Wally...</div>';
