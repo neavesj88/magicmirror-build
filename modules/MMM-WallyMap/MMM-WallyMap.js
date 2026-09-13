@@ -120,6 +120,7 @@ Module.register("MMM-WallyMap", {
 		this.lastGoodAt = null;
 		this.offline = false;
 		this.viewTimer = null;
+		this.fadeTimer = null;
 		this.clockTimer = null;
 		this.clockEl = null;
 		this.canvases = [];
@@ -252,6 +253,10 @@ Module.register("MMM-WallyMap", {
 	},
 
 	getDom: function () {
+		/* A poll rebuilds this every 15 minutes. Carry the rotation across
+		 * the rebuild, otherwise it snapped back to the wide view each time
+		 * and that view got systematically more screen time. */
+		var prevIndex = this.viewIndex, prevCount = this.canvases.length;
 		this.stopCycle();
 		this.stopClock();
 		this.canvases = [];
@@ -295,6 +300,8 @@ Module.register("MMM-WallyMap", {
 			views.push({ points: [{ lat: here.lat, lng: here.lng }], minSpan: this.config.closeSpanDeg });
 		}
 
+		var startIndex = (prevCount === views.length && prevIndex < views.length) ? prevIndex : 0;
+
 		var stage = document.createElement("div");
 		stage.className = "wallymap-stage";
 		stage.style.width = this.config.width + "px";
@@ -307,7 +314,7 @@ Module.register("MMM-WallyMap", {
 			canvas.height = self.config.height;
 			canvas.className = "wallymap-canvas";
 			canvas.style.transition = "opacity " + self.fadeDuration() + "ms ease-in-out";
-			canvas.style.opacity = i === 0 ? "1" : "0";
+			canvas.style.opacity = i === startIndex ? "1" : "0";
 			stage.appendChild(canvas);
 			self.canvases.push({ el: canvas, view: view });
 		});
@@ -366,7 +373,7 @@ Module.register("MMM-WallyMap", {
 
 		// Canvases have no size until they are in the document.
 		setTimeout(function () {
-			self.viewIndex = 0;
+			self.viewIndex = startIndex;
 			self.canvases.forEach(function (c) { self.drawView(c.el, c.view); });
 			if (self.canvases.length > 1) self.startCycle();
 			if (self.clockEl) self.startClock();
@@ -381,18 +388,27 @@ Module.register("MMM-WallyMap", {
 		// Hold, then fade out, then fade the next one in - never both at once.
 		this.viewTimer = setInterval(function () {
 			if (self.canvases.length < 2) return;
-			var current = self.canvases[self.viewIndex];
-			var next = (self.viewIndex + 1) % self.canvases.length;
+			var stack = self.canvases;
+			var current = stack[self.viewIndex];
+			var next = (self.viewIndex + 1) % stack.length;
 			current.el.style.opacity = "0";
-			setTimeout(function () {
+			/* Tracked, because a poll can rebuild the DOM inside this fade. An
+			 * untracked timeout still fired afterwards, moving viewIndex while the
+			 * other canvas was the visible one; the next tick then faded out
+			 * something already invisible and faded in something already shown,
+			 * costing a whole silent cycle and making the two views unequal. */
+			self.fadeTimer = setTimeout(function () {
+				self.fadeTimer = null;
+				if (self.canvases !== stack) return;
 				self.viewIndex = next;
-				self.canvases[next].el.style.opacity = "1";
+				stack[next].el.style.opacity = "1";
 			}, self.fadeDuration());
 		}, this.holdDuration() + this.fadeDuration() * 2);
 	},
 
 	stopCycle: function () {
 		if (this.viewTimer) { clearInterval(this.viewTimer); this.viewTimer = null; }
+		if (this.fadeTimer) { clearTimeout(this.fadeTimer); this.fadeTimer = null; }
 	},
 
 	/**
