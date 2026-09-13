@@ -524,19 +524,19 @@ Module.register("MMM-WallyMap", {
 		ctx.rect(x0, y0, mw, mh);
 		ctx.clip();
 		// Opaque backdrop, otherwise the main map shows through the inset.
-		ctx.fillStyle = "rgba(0,0,0,0.78)";
+		ctx.fillStyle = "rgba(0,0,0,0.85)";
 		ctx.fillRect(x0, y0, mw, mh);
 		/* Coastlines only. Drawing every country outline here made the inset an
 		 * unreadable thicket of borders; the land/sea edge alone is enough to
 		 * recognise Europe at a glance and put the ping in context. */
 		ctx.lineWidth = 1;
-		ctx.strokeStyle = col(0.38);
+		ctx.strokeStyle = col(0.7);
 		this.strokeRings(ctx, project, this.coast && this.coast.length ? this.coast : this.rings);
 		ctx.restore();
 
 		// Frame and pointer outside the clip so they stay crisp.
 		ctx.lineWidth = 1;
-		ctx.strokeStyle = col(0.3);
+		ctx.strokeStyle = col(0.55);
 		ctx.strokeRect(x0, y0, mw, mh);
 
 		var p = project(here.lng, here.lat);
@@ -547,7 +547,7 @@ Module.register("MMM-WallyMap", {
 		ctx.beginPath();
 		ctx.arc(p[0], p[1], 6, 0, Math.PI * 2);
 		ctx.lineWidth = 1.2;
-		ctx.strokeStyle = col(0.85);
+		ctx.strokeStyle = col(1);
 		ctx.stroke();
 	},
 
@@ -572,8 +572,8 @@ Module.register("MMM-WallyMap", {
 		};
 
 		ctx.lineWidth = 1;
-		stroke(this.detail.borders, 0.32);
-		stroke(this.detail.rivers, 0.3);
+		stroke(this.detail.borders, 0.7);
+		stroke(this.detail.rivers, 0.6);
 
 		// Skip any city that is a stop on the trip - those get their own,
 		// brighter tag and would otherwise be labelled twice.
@@ -590,9 +590,9 @@ Module.register("MMM-WallyMap", {
 			var xy = project(p.lng, p.lat);
 			ctx.beginPath();
 			ctx.arc(xy[0], xy[1], 2.4, 0, Math.PI * 2);
-			ctx.fillStyle = col(0.5);
+			ctx.fillStyle = col(0.8);
 			ctx.fill();
-			ctx.fillStyle = col(0.45);
+			ctx.fillStyle = col(0.75);
 			ctx.fillText(p.name, xy[0] + 7, xy[1]);
 		});
 	},
@@ -641,8 +641,8 @@ Module.register("MMM-WallyMap", {
 		 * land rings stay, since they are the only coastline either way. */
 		var detailed = project.spanDeg < this.config.detailBelowDeg &&
 			this.detail && this.detail.borders && this.detail.borders.length > 0;
-		ctx.lineWidth = 1;
-		ctx.strokeStyle = col(0.22);
+		ctx.lineWidth = 1.6;
+		ctx.strokeStyle = col(0.6);
 		this.strokeRings(ctx, project, detailed ? this.coast : this.rings);
 
 		if (project.spanDeg < this.config.detailBelowDeg) {
@@ -651,12 +651,12 @@ Module.register("MMM-WallyMap", {
 
 		// Route. Flights bow and dash; everything on the ground runs straight.
 		if (this.config.showTrail) {
-			ctx.lineWidth = 1.5;
+			ctx.lineWidth = 2.6;
 			this.legs.forEach(function (leg) {
 				var a = project(leg.fromLng, leg.fromLat);
 				var z = project(leg.toLng, leg.toLat);
 				var flying = leg.mode === "plane";
-				ctx.strokeStyle = col(flying ? 0.55 : 0.75);
+				ctx.strokeStyle = col(flying ? 0.85 : 1);
 				ctx.setLineDash(flying ? [4, 4] : []);
 				ctx.beginPath();
 				ctx.moveTo(a[0], a[1]);
@@ -680,7 +680,7 @@ Module.register("MMM-WallyMap", {
 			var p = project(this.stops[i].lng, this.stops[i].lat);
 			ctx.beginPath();
 			ctx.arc(p[0], p[1], 2.5, 0, Math.PI * 2);
-			ctx.fillStyle = col(0.6);
+			ctx.fillStyle = col(0.85);
 			ctx.fill();
 		}
 
@@ -693,8 +693,8 @@ Module.register("MMM-WallyMap", {
 		ctx.fill();
 		ctx.beginPath();
 		ctx.arc(c[0], c[1], 13, 0, Math.PI * 2);
-		ctx.lineWidth = 1.5;
-		ctx.strokeStyle = col(0.7);
+		ctx.lineWidth = 2.5;
+		ctx.strokeStyle = col(1);
 		ctx.stroke();
 
 		if (this.config.showEndpointLabels) {

@@ -1,7 +1,7 @@
 .wallymap-wrapper { text-align: center; }
 .wallymap-status { color: inherit; font-size: 14px; opacity: 0.5; }
 .wallymap-substatus { color: inherit; font-size: 12px; opacity: 0.3; margin-top: 4px; }
-.wallymap-offline { font-size: 12px; color: inherit; opacity: 0.4; letter-spacing: 1px; }
+.wallymap-offline { font-size: 12px; color: inherit; opacity: 0.7; letter-spacing: 1px; }
 
 /* The views are stacked so a fade swaps between them in place. Only one is
  * ever opaque, so the stage must reserve the height itself. */
@@ -9,10 +9,10 @@
 .wallymap-canvas { position: absolute; top: 0; left: 0; display: block; }
 
 .wallymap-invite { display: flex; flex-direction: column; align-items: center; gap: 3px; margin-top: 10px; }
-.wallymap-teaser { font-size: 15px; color: inherit; opacity: 0.45; max-width: 620px; line-height: 1.35; }
-.wallymap-url { font-size: 20px; color: inherit; opacity: 0.8; letter-spacing: 2px; }
+.wallymap-teaser { font-size: 15px; color: inherit; opacity: 0.7; max-width: 620px; line-height: 1.35; }
+.wallymap-url { font-size: 20px; color: inherit; opacity: 1; letter-spacing: 2px; }
 
 .wallymap-here { display: flex; flex-direction: column; align-items: center; gap: 2px; margin-top: 6px; }
 .wallymap-place { font-size: 34px; font-weight: 300; color: inherit; letter-spacing: 1px; }
-.wallymap-clock { font-size: 22px; color: inherit; opacity: 0.75; letter-spacing: 1px; }
-.wallymap-when { font-size: 17px; color: inherit; opacity: 0.6; }
+.wallymap-clock { font-size: 22px; color: inherit; opacity: 0.95; letter-spacing: 1px; }
+.wallymap-when { font-size: 17px; color: inherit; opacity: 0.85; }
