@@ -183,6 +183,7 @@ function buildFixture(name) {
 		// Ground hop: one view, auto-scaled to the ground covered.
 		return {
 			tripTitle: "Test: Munich to Salzburg",
+			tripActive: true,
 			invite: DEFAULT_INVITE,
 			stops: [stop("munich", "Munich", 3, 1), stop("salzburg", "Salzburg", 0, 1)],
 			legs: [leg("train", "munich", "salzburg")],
@@ -193,6 +194,7 @@ function buildFixture(name) {
 		// Long haul: wide view of the whole journey, alternating with the close one.
 		return {
 			tripTitle: "Test: Perth to Munich",
+			tripActive: true,
 			invite: DEFAULT_INVITE,
 			stops: [stop("perth", "Home", 5, 1), stop("dubai", "Dubai", 4, 1), stop("munich", "Landed in Munich", 0, 2)],
 			legs: [leg("plane", "perth", "dubai"), leg("plane", "dubai", "munich")],
@@ -373,6 +375,31 @@ module.exports = NodeHelper.create({
 		 * screen over a real one, so it is an error. */
 		if (!Array.isArray(posts)) throw new Error("posts response was not a list");
 
+		/* The trip endpoint is the on/off switch and the scope, so it is fetched
+		 * here, before the stops are built. /api/travel/posts returns EVERY
+		 * published post ever: it is not scoped to the current trip and does not
+		 * empty when a trip is switched off. Without this the map would stay up
+		 * forever on the last trip once he got home, and a second trip would be
+		 * drawn joined to the first. tripActive null means the fetch failed and
+		 * nothing should be concluded from it. */
+		var tripActive = null, chapters = null, chapterIds = null, tripName = null;
+		try {
+			var tripRes = await fetch(config.tripUrl, { signal: AbortSignal.timeout(10000) });
+			if (tripRes.ok) {
+				var tripData = await tripRes.json();
+				tripActive = !!(tripData && tripData.trip);
+				tripName = (tripActive && tripData.trip.title) ? tripData.trip.title : null;
+				chapters = [];
+				if (Array.isArray(tripData.chapters)) {
+					chapters = tripData.chapters.map(function (c) {
+						return { id: String(c.id), title: c.title, subtitle: c.subtitle || null };
+					});
+				}
+				chapterIds = {};
+				chapters.forEach(function (c) { chapterIds[c.id] = true; });
+			}
+		} catch (e) { /* leave everything null: conclude nothing */ }
+
 		/* Coordinates are float8 in Postgres and should arrive as numbers, but a
 		 * serialiser that hands back "48.14" would otherwise fail Number.isFinite
 		 * and silently drop the entire trip. Coerce, then validate. */
@@ -380,7 +407,14 @@ module.exports = NodeHelper.create({
 			if (!p) return false;
 			p.lat = Number(p.lat);
 			p.lng = Number(p.lng);
-			return Number.isFinite(p.lat) && Number.isFinite(p.lng);
+			if (!Number.isFinite(p.lat) || !Number.isFinite(p.lng)) return false;
+			/* Keep only what belongs to the current trip. A stop filed under another
+			 * trip's chapter is a past trip and must not be plotted onto this one. A
+			 * stop with no chapter has not been filed yet, so it is taken to be one
+			 * just posted and kept. With no chapter list at all, keep everything. */
+			if (!chapterIds) return true;
+			var cid = (p.chapterId === undefined || p.chapterId === null) ? null : String(p.chapterId);
+			return cid === null || chapterIds[cid] === true;
 		});
 
 		/* Newest last, so the final entry is where he is now - which makes this
@@ -444,26 +478,11 @@ module.exports = NodeHelper.create({
 			}
 		} catch (e) { /* leave them null */ }
 
-		/* Chapters name the sections of a journey ("Bavaria & the Alps"). Like
-		 * the trip title they are decoration, so this is its own try and yields
-		 * an empty list on any problem rather than costing the map. The trip
-		 * endpoint is also the authoritative title; the teaser is the fallback. */
-		var chapters = null;   // null = fetch failed; [] = genuinely none
-		try {
-			var tripRes = await fetch(config.tripUrl, { signal: AbortSignal.timeout(10000) });
-			if (tripRes.ok) {
-				var tripData = await tripRes.json();
-				chapters = [];
-				if (Array.isArray(tripData.chapters)) {
-					chapters = tripData.chapters.map(function (c) {
-						return { id: String(c.id), title: c.title, subtitle: c.subtitle || null };
-					});
-				}
-				if (tripData.trip && tripData.trip.title) tripTitle = tripData.trip.title;
-			}
-		} catch (e) { /* leave chapters empty */ }
+		// The trip record is the authoritative title; the popup teaser is fallback.
+		if (tripName) tripTitle = tripName;
 
-		return { tripTitle: tripTitle, invite: invite, stops: stops, legs: legs, chapters: chapters };
+		return { tripTitle: tripTitle, invite: invite, stops: stops, legs: legs,
+			chapters: chapters, tripActive: tripActive };
 	},
 
 	/**
@@ -552,7 +571,11 @@ module.exports = NodeHelper.create({
 			}
 
 			this.sendSocketNotification("WALLY_DATA", {
-				travelling: trip.stops.length > 0,
+				/* An active trip AND something to draw. tripActive false is decisive: the
+				 * switch is off, so whatever stops the posts endpoint still returns belong
+				 * to a finished trip. null means the trip fetch failed, in which case fall
+				 * back to having stops rather than blanking a working map. */
+				travelling: trip.stops.length > 0 && trip.tripActive !== false,
 				tripTitle: trip.tripTitle,
 				invite: trip.invite,
 				stops: trip.stops,
