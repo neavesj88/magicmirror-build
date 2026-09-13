@@ -20,10 +20,13 @@ Module.register("MMM-WallyMap", {
 		postsUrl: "https://neaves.au/api/travel/posts",
 		currentUrl: "https://neaves.au/api/travel/current",
 		atlasUrl: "https://neaves.au/geo/countries-110m.json",
-		// The panel is 1080 wide in portrait, so the old 400px canvas was a
-		// postcard in the middle of it.
+		/* The panel is 1080 wide in portrait. Height is deliberately less than
+		 * width: at 1040 square the box ran up into the calendar and left a gap
+		 * above the news ticker, because the band between them is only about
+		 * 980px once the label and invite are allowed for. routeFill is high so
+		 * the map uses the box rather than padding it out with empty space. */
 		width: 1040,
-		height: 1040,
+		height: 760,
 		// Hidden while a trip is showing, and shown again once he is home, so
 		// the slot is never both at once and nothing has to be reconfigured
 		// when the trip ends.
@@ -44,7 +47,7 @@ Module.register("MMM-WallyMap", {
 		// Fraction of the frame the route fills. Below 1 leaves surrounding
 		// country around it, which is what makes the wireframe read as a map
 		// rather than a few abstract lines.
-		routeFill: 0.74,
+		routeFill: 0.86,
 		// Country outlines alone leave a local frame nearly empty, so below this
 		// span the view also gets rivers and nearby cities.
 		detailBelowDeg: 12,
