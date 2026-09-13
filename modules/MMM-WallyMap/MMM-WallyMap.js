@@ -19,6 +19,7 @@ Module.register("MMM-WallyMap", {
 		updateInterval: 15 * 60 * 1000,
 		postsUrl: "https://neaves.au/api/travel/posts",
 		currentUrl: "https://neaves.au/api/travel/current",
+		tripUrl: "https://neaves.au/api/travel/trip",
 		atlasUrl: "https://neaves.au/geo/countries-110m.json",
 		/* The panel is 1080 wide in portrait. Height is deliberately less than
 		 * width: at 1040 square the box ran up into the calendar and left a gap
@@ -110,6 +111,7 @@ Module.register("MMM-WallyMap", {
 		this.local = null;
 		this.stops = [];
 		this.legs = [];
+		this.chapters = [];
 		this.rings = [];
 		this.coast = [];
 		this.detail = null;
@@ -133,6 +135,7 @@ Module.register("MMM-WallyMap", {
 		this.sendSocketNotification("WALLY_GET_DATA", {
 			postsUrl: this.config.postsUrl,
 			currentUrl: this.config.currentUrl,
+			tripUrl: this.config.tripUrl,
 			atlasUrl: this.config.atlasUrl,
 			testMode: this.config.testMode,
 			detailBoxDeg: this.config.detailBoxDeg,
@@ -150,6 +153,7 @@ Module.register("MMM-WallyMap", {
 			this.local = payload.local;
 			this.stops = payload.stops || [];
 			this.legs = payload.legs || [];
+			this.chapters = payload.chapters || [];
 			// null means unchanged, so keep the outlines already held.
 			if (payload.rings) this.rings = payload.rings;
 			if (payload.coast) this.coast = payload.coast;
@@ -300,10 +304,18 @@ Module.register("MMM-WallyMap", {
 			views.push({ points: [{ lat: here.lat, lng: here.lng }], minSpan: this.config.closeSpanDeg });
 		}
 
-		/* The day's post title sits under the trip title in the header, so the
-		 * top of the block reads trip-then-today. Omitted when the stop has no
-		 * title of its own, or when it just repeats the place name shown below
-		 * the map. */
+		/* Top of the block reads trip, then chapter, then today: the trip
+		 * title is the module header, the chapter names the leg of the journey,
+		 * and the post title says what today was. Each is skipped when absent,
+		 * and the post title is skipped when it merely repeats the place name
+		 * already shown under the map. */
+		var chapter = this.chapterTitle();
+		if (chapter) {
+			var chapterEl = document.createElement("div");
+			chapterEl.className = "wallymap-chapter";
+			chapterEl.textContent = chapter;
+			wrapper.appendChild(chapterEl);
+		}
 		if (here && here.title) {
 			var t = String(here.title).trim();
 			if (t && t.toLowerCase() !== this.shortName(here.locationName).toLowerCase()) {
@@ -481,6 +493,18 @@ Module.register("MMM-WallyMap", {
 	 * last stop when the legs carry no names, and to nothing at all on the first
 	 * stop of a trip, where there is no journey to describe yet.
 	 */
+	/**
+	 * The name of the section of the journey he is in - "Bavaria & the Alps".
+	 * Chapters are optional in the data, so this is empty far more often than
+	 * not and the caller simply draws nothing.
+	 */
+	chapterTitle: function () {
+		var here = this.stops[this.stops.length - 1];
+		if (!here || here.chapterId === null || here.chapterId === undefined) return "";
+		var match = this.chapters.filter(function (c) { return c.id === here.chapterId; })[0];
+		return match && match.title ? String(match.title).trim() : "";
+	},
+
 	legRouteText: function () {
 		var last = this.legs.length ? this.legs[this.legs.length - 1] : null;
 		var from = last && last.fromName ? this.shortName(last.fromName) : null;

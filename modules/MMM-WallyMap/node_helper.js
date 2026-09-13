@@ -167,8 +167,12 @@ function leg(mode, from, to) {
 	};
 }
 
-function stop(key, title, days) {
-	return Object.assign({ title: title, arrivedAt: daysAgo(days) }, PLACES[key]);
+function stop(key, title, days, chapterId) {
+	return Object.assign({
+		title: title,
+		arrivedAt: daysAgo(days),
+		chapterId: chapterId === undefined ? null : chapterId,
+	}, PLACES[key]);
 }
 
 /* Built per request, not once at load. The node helper runs for weeks between
@@ -180,8 +184,9 @@ function buildFixture(name) {
 		return {
 			tripTitle: "Test: Munich to Salzburg",
 			invite: DEFAULT_INVITE,
-			stops: [stop("munich", "Munich", 3), stop("salzburg", "Salzburg", 0)],
+			stops: [stop("munich", "Munich", 3, 1), stop("salzburg", "Salzburg", 0, 1)],
 			legs: [leg("train", "munich", "salzburg")],
+			chapters: [{ id: 1, title: "Bavaria & the Alps", subtitle: null }],
 		};
 	}
 	if (name === "flight") {
@@ -189,8 +194,12 @@ function buildFixture(name) {
 		return {
 			tripTitle: "Test: Perth to Munich",
 			invite: DEFAULT_INVITE,
-			stops: [stop("perth", "Home", 5), stop("dubai", "Dubai", 4), stop("munich", "Munich", 0)],
+			stops: [stop("perth", "Home", 5, 1), stop("dubai", "Dubai", 4, 1), stop("munich", "Landed in Munich", 0, 2)],
 			legs: [leg("plane", "perth", "dubai"), leg("plane", "dubai", "munich")],
+			chapters: [
+				{ id: 1, title: "The Long Way Over", subtitle: null },
+				{ id: 2, title: "Bavaria & the Alps", subtitle: null },
+			],
 		};
 	}
 	return null;
@@ -372,6 +381,7 @@ module.exports = NodeHelper.create({
 				lat: p.lat,
 				lng: p.lng,
 				arrivedAt: p.arrivedAt,
+				chapterId: p.chapterId !== undefined ? p.chapterId : null,
 			};
 		});
 
@@ -409,7 +419,25 @@ module.exports = NodeHelper.create({
 			}
 		} catch (e) { /* leave them null */ }
 
-		return { tripTitle: tripTitle, invite: invite, stops: stops, legs: legs };
+		/* Chapters name the sections of a journey ("Bavaria & the Alps"). Like
+		 * the trip title they are decoration, so this is its own try and yields
+		 * an empty list on any problem rather than costing the map. The trip
+		 * endpoint is also the authoritative title; the teaser is the fallback. */
+		var chapters = [];
+		try {
+			var tripRes = await fetch(config.tripUrl, { signal: AbortSignal.timeout(10000) });
+			if (tripRes.ok) {
+				var tripData = await tripRes.json();
+				if (Array.isArray(tripData.chapters)) {
+					chapters = tripData.chapters.map(function (c) {
+						return { id: c.id, title: c.title, subtitle: c.subtitle || null };
+					});
+				}
+				if (tripData.trip && tripData.trip.title) tripTitle = tripData.trip.title;
+			}
+		} catch (e) { /* leave chapters empty */ }
+
+		return { tripTitle: tripTitle, invite: invite, stops: stops, legs: legs, chapters: chapters };
 	},
 
 	/**
@@ -503,6 +531,7 @@ module.exports = NodeHelper.create({
 				invite: trip.invite,
 				stops: trip.stops,
 				legs: trip.legs,
+				chapters: trip.chapters || [],
 				local: local,
 				detail: detail,
 				/* The atlas is static, so it is sent once and then omitted -
