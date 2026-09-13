@@ -1,4 +1,6 @@
 .wallymap-wrapper { text-align: center; }
+.wallymap-posttitle { font-size: 26px; color: inherit; opacity: 0.8; font-weight: 300;
+  letter-spacing: 1px; margin-bottom: 8px; }
 .wallymap-status { color: inherit; font-size: 14px; opacity: 0.5; }
 .wallymap-substatus { color: inherit; font-size: 12px; opacity: 0.3; margin-top: 4px; }
 .wallymap-offline { font-size: 12px; color: inherit; opacity: 0.7; letter-spacing: 1px; }
@@ -9,7 +11,7 @@
 .wallymap-canvas { position: absolute; top: 0; left: 0; display: block; }
 
 .wallymap-invite { display: flex; flex-direction: column; align-items: center; gap: 3px; margin-top: 10px; }
-.wallymap-teaser { font-size: 20px; color: inherit; opacity: 0.7; max-width: 620px; line-height: 1.35; }
+.wallymap-journey { font-size: 24px; color: inherit; opacity: 0.85; letter-spacing: 1px; }
 .wallymap-url { font-size: 28px; color: inherit; opacity: 1; letter-spacing: 2px; }
 
 .wallymap-here { display: flex; flex-direction: column; align-items: center; gap: 2px; margin-top: 6px; }

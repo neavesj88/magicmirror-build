@@ -160,6 +160,8 @@ var PLACES = {
 function leg(mode, from, to) {
 	return {
 		mode: mode,
+		fromName: PLACES[from].locationName,
+		toName: PLACES[to].locationName,
 		fromLat: PLACES[from].lat, fromLng: PLACES[from].lng,
 		toLat: PLACES[to].lat, toLng: PLACES[to].lng,
 	};
@@ -385,6 +387,8 @@ module.exports = NodeHelper.create({
 					if (c.every(Number.isFinite)) {
 						legs.push({
 							mode: l.mode,
+							fromName: l.fromName || null,
+							toName: l.toName || null,
 							fromLat: c[0], fromLng: c[1],
 							toLat: c[2], toLng: c[3],
 						});

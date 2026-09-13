@@ -300,6 +300,20 @@ Module.register("MMM-WallyMap", {
 			views.push({ points: [{ lat: here.lat, lng: here.lng }], minSpan: this.config.closeSpanDeg });
 		}
 
+		/* The day's post title sits under the trip title in the header, so the
+		 * top of the block reads trip-then-today. Omitted when the stop has no
+		 * title of its own, or when it just repeats the place name shown below
+		 * the map. */
+		if (here && here.title) {
+			var t = String(here.title).trim();
+			if (t && t.toLowerCase() !== this.shortName(here.locationName).toLowerCase()) {
+				var postTitle = document.createElement("div");
+				postTitle.className = "wallymap-posttitle";
+				postTitle.textContent = t;
+				wrapper.appendChild(postTitle);
+			}
+		}
+
 		var startIndex = (prevCount === views.length && prevIndex < views.length) ? prevIndex : 0;
 
 		var stage = document.createElement("div");
@@ -358,12 +372,18 @@ Module.register("MMM-WallyMap", {
 		if (this.config.showInvite) {
 			var invite = document.createElement("div");
 			invite.className = "wallymap-invite";
-			if (this.invite) {
-				var teaser = document.createElement("span");
-				teaser.className = "wallymap-teaser";
-				teaser.textContent = this.invite;
-				invite.appendChild(teaser);
+
+			/* The journey that got him here, in place names, in place of the
+			 * generic "off wandering" line. Uses the leg's own fromName/toName
+			 * rather than the stop list, so it says how he actually travelled. */
+			var route = this.legRouteText();
+			if (route) {
+				var journey = document.createElement("span");
+				journey.className = "wallymap-journey";
+				journey.textContent = route;
+				invite.appendChild(journey);
 			}
+
 			var url = document.createElement("span");
 			url.className = "wallymap-url";
 			url.textContent = this.config.siteUrl;
@@ -454,6 +474,25 @@ Module.register("MMM-WallyMap", {
 		var hours = Math.round(mins / 60);
 		if (hours < 48) return "offline \u00b7 " + hours + "h old";
 		return "offline \u00b7 " + Math.round(hours / 24) + "d old";
+	},
+
+	/**
+	 * "Dubai \u2192 Munich" for the most recent leg. Falls back to the first and
+	 * last stop when the legs carry no names, and to nothing at all on the first
+	 * stop of a trip, where there is no journey to describe yet.
+	 */
+	legRouteText: function () {
+		var last = this.legs.length ? this.legs[this.legs.length - 1] : null;
+		var from = last && last.fromName ? this.shortName(last.fromName) : null;
+		var to = last && last.toName ? this.shortName(last.toName) : null;
+
+		if (!from || !to) {
+			if (this.stops.length < 2) return "";
+			from = this.shortName(this.stops[0].locationName);
+			to = this.shortName(this.stops[this.stops.length - 1].locationName);
+		}
+		if (!from || !to || from === to) return "";
+		return from + " \u2192 " + to;
 	},
 
 	sinceText: function (arrivedAt) {
