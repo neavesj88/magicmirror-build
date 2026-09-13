@@ -90,7 +90,7 @@ let config = {
 			position: "bottom_bar",
 			config: {
 				feeds: [
-					{ title: "Where's Wally", url: "https://neaves.au/travel.xml" },
+					{ title: "Where's Wally", url: "https://neaves.au/wally/feed.xml" },
 					{ title: "neaves.au", url: "https://neaves.au/feed.xml" },
 					{ title: "ABC News", url: "https://www.abc.net.au/news/feed/51120/rss.xml" },
 					{ title: "SBS News", url: "https://www.sbs.com.au/news/feed" },
