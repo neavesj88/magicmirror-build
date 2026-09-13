@@ -26,7 +26,7 @@ Module.register("MMM-WallyMap", {
 		 * 980px once the label and invite are allowed for. routeFill is high so
 		 * the map uses the box rather than padding it out with empty space. */
 		width: 1040,
-		height: 760,
+		height: 620,
 		// Hidden while a trip is showing, and shown again once he is home, so
 		// the slot is never both at once and nothing has to be reconfigured
 		// when the trip ends.
@@ -38,7 +38,7 @@ Module.register("MMM-WallyMap", {
 		 * the whole thing instead, without changing its height. Bigger moves the
 		 * map down. The free band here runs from under the forecast to the news
 		 * ticker, whose centre is well below the screen's. */
-		offsetTopPx: 260,
+		offsetTopPx: 300,
 		// Floor for a trip that includes a flight, where the wide view is the
 		// whole journey and wants room around it.
 		minSpanDeg: 8,
