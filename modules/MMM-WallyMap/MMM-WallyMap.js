@@ -478,9 +478,16 @@ Module.register("MMM-WallyMap", {
 		var span = this.config.minimapSpanDeg;
 		var kx = Math.max(0.15, Math.cos(here.lat * Math.PI / 180));
 		var scale = Math.min(mw / (span * kx), mh / span);
+		/* Unwrap the longitude difference across the antimeridian. Taken raw,
+		 * a coast 2 degrees east of a stop at 178E computes as 358 degrees west
+		 * and lands far outside the clipped inset, leaving the pointer floating
+		 * in blank sea. Harmless in Europe, wrong in Fiji. */
 		var project = function (lng, lat) {
+			var dlng = lng - here.lng;
+			if (dlng > 180) dlng -= 360;
+			else if (dlng < -180) dlng += 360;
 			return [
-				x0 + mw / 2 + (lng - here.lng) * kx * scale,
+				x0 + mw / 2 + dlng * kx * scale,
 				y0 + mh / 2 + (here.lat - lat) * scale,
 			];
 		};
