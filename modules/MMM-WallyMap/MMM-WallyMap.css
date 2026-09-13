@@ -9,10 +9,10 @@
 .wallymap-canvas { position: absolute; top: 0; left: 0; display: block; }
 
 .wallymap-invite { display: flex; flex-direction: column; align-items: center; gap: 3px; margin-top: 10px; }
-.wallymap-teaser { font-size: 15px; color: inherit; opacity: 0.7; max-width: 620px; line-height: 1.35; }
-.wallymap-url { font-size: 20px; color: inherit; opacity: 1; letter-spacing: 2px; }
+.wallymap-teaser { font-size: 20px; color: inherit; opacity: 0.7; max-width: 620px; line-height: 1.35; }
+.wallymap-url { font-size: 28px; color: inherit; opacity: 1; letter-spacing: 2px; }
 
 .wallymap-here { display: flex; flex-direction: column; align-items: center; gap: 2px; margin-top: 6px; }
-.wallymap-place { font-size: 34px; font-weight: 300; color: inherit; letter-spacing: 1px; }
-.wallymap-clock { font-size: 22px; color: inherit; opacity: 0.95; letter-spacing: 1px; }
-.wallymap-when { font-size: 17px; color: inherit; opacity: 0.85; }
+.wallymap-place { font-size: 52px; font-weight: 400; color: inherit; letter-spacing: 1px; }
+.wallymap-clock { font-size: 32px; color: inherit; opacity: 0.95; letter-spacing: 1px; }
+.wallymap-when { font-size: 24px; color: inherit; opacity: 0.85; }
