@@ -39,7 +39,7 @@ Module.register("MMM-WallyMap", {
 		 * the whole thing instead, without changing its height. Bigger moves the
 		 * map down. The free band here runs from under the forecast to the news
 		 * ticker, whose centre is well below the screen's. */
-		offsetTopPx: 300,
+		offsetTopPx: 200,
 		// Floor for a trip that includes a flight, where the wide view is the
 		// whole journey and wants room around it.
 		minSpanDeg: 8,
