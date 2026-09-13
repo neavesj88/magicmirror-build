@@ -71,9 +71,10 @@ let config = {
 			position: "middle_center",
 			config: {
 				updateInterval: 15 * 60 * 1000,
-				// Previewing the long-haul behaviour on canned Perth/Dubai/Munich
-				// data. Set to false once the real trip has a published stop.
-				testMode: "flight",
+				// Preview is off. The map now follows the real feed: it stays
+				// hidden until a trip is made current and a stop is published,
+				// and the Bitcoin price holds the slot until then.
+				testMode: false,
 			}
 		},
 		{
