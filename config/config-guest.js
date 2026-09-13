@@ -95,7 +95,6 @@ let config = {
 					{ title: "ABC News", url: "https://www.abc.net.au/news/feed/51120/rss.xml" },
 					{ title: "SBS News", url: "https://www.sbs.com.au/news/feed" },
 					{ title: "The Guardian AU", url: "https://www.theguardian.com/au/rss" },
-					{ title: "9News", url: "https://www.9news.com.au/rss" },
 				],
 				showSourceTitle: true,
 				showPublishDate: true,

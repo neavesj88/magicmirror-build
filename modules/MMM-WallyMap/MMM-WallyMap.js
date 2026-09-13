@@ -168,6 +168,11 @@ Module.register("MMM-WallyMap", {
 			if (this.travelling) { this.show(this.config.animationSpeed); }
 			else { this.hide(this.config.animationSpeed); }
 			this.setNeighbours(this.travelling);
+			/* Applied as a class rather than inline so it survives show()/hide(), and
+			 * removed when hidden so the module stops reserving space and the price
+			 * below it does not sit under a gap. */
+			var box = document.getElementById(this.identifier);
+			if (box) box.classList.toggle("wally-offset", !!this.travelling);
 			this.updateDom(this.config.animationSpeed);
 		} else if (notification === "WALLY_ERROR") {
 			/* A failed poll must not wipe a working map. The mirror runs
@@ -429,13 +434,13 @@ Module.register("MMM-WallyMap", {
 			if (self.clockEl) self.startClock();
 			/* Offset the module's own container, not this wrapper: MagicMirror draws
 			 * the module header OUTSIDE the wrapper, so shifting only the wrapper left
-			 * the trip title stranded up under the calendar with a gap between it and
-			 * its own map. */
+			 * the trip title stranded under the calendar, away from its own map.
+			 *
+			 * Only the distance is set here. The positioning itself lives in the
+			 * stylesheet, because MagicMirror's own show()/hide() write
+			 * moduleWrapper.style.position inline and wiped an inline rule set here. */
 			var box = document.getElementById(self.identifier);
-			if (box) {
-				box.style.position = "relative";
-				box.style.top = self.config.offsetTopPx + "px";
-			}
+			if (box) box.style.setProperty("--wally-offset-top", self.config.offsetTopPx + "px");
 		}, 100);
 
 		return wrapper;
