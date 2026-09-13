@@ -1,3 +1,11 @@
+/* middle_center is centre-anchored (main.css: top:50%, translateY(-50%)), so
+ * the block sits mid-screen, high against the calendar. This drops it into
+ * the free band. !important because MagicMirror's show()/hide() set
+ * position inline on the module wrapper and would otherwise cancel it; the
+ * class is only present while the module is visible. */
+.module.MMM-WallyMap.wally-offset { position: relative !important;
+  top: var(--wally-offset-top, 300px); }
+
 .wallymap-wrapper { text-align: center; }
 .wallymap-chapter { font-size: 20px; color: inherit; opacity: 0.55; letter-spacing: 3px;
   text-transform: uppercase; margin-bottom: 2px;  max-width: 900px; margin-left: auto; margin-right: auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;}
