@@ -277,8 +277,6 @@ Module.register("MMM-WallyMap", {
 
 		var wrapper = document.createElement("div");
 		wrapper.className = "wallymap-wrapper";
-		wrapper.style.position = "relative";
-		wrapper.style.top = this.config.offsetTopPx + "px";
 
 		if (!this.loaded) {
 			wrapper.innerHTML = '<div class="wallymap-status">Finding Wally...</div>';
@@ -429,6 +427,15 @@ Module.register("MMM-WallyMap", {
 			self.canvases.forEach(function (c) { self.drawView(c.el, c.view); });
 			if (self.canvases.length > 1) self.startCycle();
 			if (self.clockEl) self.startClock();
+			/* Offset the module's own container, not this wrapper: MagicMirror draws
+			 * the module header OUTSIDE the wrapper, so shifting only the wrapper left
+			 * the trip title stranded up under the calendar with a gap between it and
+			 * its own map. */
+			var box = document.getElementById(self.identifier);
+			if (box) {
+				box.style.position = "relative";
+				box.style.top = self.config.offsetTopPx + "px";
+			}
 		}, 100);
 
 		return wrapper;
@@ -738,7 +745,7 @@ Module.register("MMM-WallyMap", {
 			// Flip the label inboard when the stop sits near the right edge.
 			var right = xy[0] > w * 0.62;
 			ctx.textAlign = right ? "right" : "left";
-			var x = xy[0] + (right ? -28 : 28);
+			var x = xy[0] + (right ? -36 : 36);
 			ctx.fillStyle = col(0.95);
 			ctx.fillText(name, x, xy[1]);
 		});
