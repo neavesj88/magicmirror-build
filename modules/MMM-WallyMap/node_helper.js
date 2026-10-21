@@ -11,6 +11,21 @@ var os = require("os");
  * mirror by hand - the module is deployed with cp, not npm. */
 
 /** Delta-decode one quantized TopoJSON arc into [lng, lat] pairs. */
+/** Great-circle distance in km. */
+function distanceKm(lat1, lng1, lat2, lng2) {
+	var rad = Math.PI / 180;
+	var dLat = (lat2 - lat1) * rad, dLng = (lng2 - lng1) * rad;
+	var a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+		Math.cos(lat1 * rad) * Math.cos(lat2 * rad) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+	return 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+/** Whether a stop is at home. No home configured means never. */
+function atHome(stop, home) {
+	if (!stop || !home || !Number.isFinite(home.lat) || !Number.isFinite(home.lng)) return false;
+	return distanceKm(stop.lat, stop.lng, home.lat, home.lng) <= (home.radiusKm || 100);
+}
+
 function decodeArc(arc, transform) {
 	var sx = transform.scale[0], sy = transform.scale[1];
 	var tx = transform.translate[0], ty = transform.translate[1];
@@ -574,8 +589,9 @@ module.exports = NodeHelper.create({
 				/* An active trip AND something to draw. tripActive false is decisive: the
 				 * switch is off, so whatever stops the posts endpoint still returns belong
 				 * to a finished trip. null means the trip fetch failed, in which case fall
-				 * back to having stops rather than blanking a working map. */
-				travelling: trip.stops.length > 0 && trip.tripActive !== false,
+				 * back to having stops rather than blanking a working map. A latest stop
+				 * back home means the trip is over, though the site still shows it. */
+				travelling: trip.stops.length > 0 && trip.tripActive !== false && !atHome(here, config.home),
 				tripTitle: trip.tripTitle,
 				invite: trip.invite,
 				stops: trip.stops,

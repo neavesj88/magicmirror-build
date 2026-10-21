@@ -88,6 +88,10 @@ Module.register("MMM-WallyMap", {
 		// How long the feed must be unreachable before the held position is
 		// labelled stale. Three missed polls, so a single blip says nothing.
 		staleAfterMins: 45,
+		/* A trip is over on the mirror once its latest stop is back home, while
+		 * the site keeps the trip, its page and its feed. Switching the trip off
+		 * on the site would end it here too, but takes the blog down with it. */
+		home: { lat: -31.95, lng: 115.86, radiusKm: 100 },
 		// Wally's wall clock and the temperature where he is.
 		showLocalClock: true,
 		// Nudge whoever is brushing their teeth towards the travel blog. The
@@ -138,6 +142,7 @@ Module.register("MMM-WallyMap", {
 			tripUrl: this.config.tripUrl,
 			atlasUrl: this.config.atlasUrl,
 			testMode: this.config.testMode,
+			home: this.config.home,
 			detailBoxDeg: this.config.detailBoxDeg,
 			minPlacePopulation: this.config.minPlacePopulation,
 			// Already have the outlines, so they need not be sent again.
