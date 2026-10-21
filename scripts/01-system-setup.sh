@@ -410,6 +410,17 @@ fi
 log ""
 log "=== MM² Update: $(date) ==="
 
+# Electron's npm package does not fetch its binary at install time; it
+# downloads it (~120 MB) the first time Electron launches. After an Electron
+# bump that download happened inside the restart, ran past the health window,
+# and a perfectly good release was rolled back (2.38.0, 21 Oct 2026). Its own
+# installer does the fetch now instead, and does nothing when the binary
+# already matches. Repos without Electron pass straight through.
+ensure_electron() {
+    [ -f node_modules/electron/install.js ] || return 0
+    node node_modules/electron/install.js >> "$LOG" 2>&1
+}
+
 # Pull one repo, npm install if it moved. Never aborts the run on failure —
 # one broken module must not stop the rest from updating.
 update_repo() {
@@ -430,10 +441,11 @@ update_repo() {
         # A failed npm install used to still set CHANGED, so the mirror was
         # restarted into half-installed dependencies and came back broken. Put
         # the repo back where it was instead and leave the working tree alone.
-        if ! npm install --omit=dev >> "$LOG" 2>&1; then
+        if ! npm install --omit=dev >> "$LOG" 2>&1 || ! ensure_electron; then
             log "  $label: npm install FAILED, rolling back to ${before:0:8}"
             git reset --hard "$before" >> "$LOG" 2>&1
             npm install --omit=dev >> "$LOG" 2>&1 || log "  $label: rollback npm also failed"
+            ensure_electron || log "  $label: rollback Electron fetch also failed"
             return 0
         fi
     fi
@@ -525,6 +537,7 @@ while IFS='|' read -r dir hash; do
     log "  reverting $(basename "$dir") to ${hash:0:8}"
     git reset --hard "$hash" >> "$LOG" 2>&1
     [ -f package.json ] && npm install --omit=dev >> "$LOG" 2>&1
+    ensure_electron
 done <<< "$ROLLBACK"
 
 systemctl --user restart magicmirror >> "$LOG" 2>&1
