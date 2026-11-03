@@ -2,6 +2,7 @@ var NodeHelper = require("node_helper");
 var fs = require("fs/promises");
 var path = require("path");
 var os = require("os");
+var net = require("node:net");
 
 /* Fetches and parses the ticker feeds for MMM-Newswire.
  *
@@ -31,6 +32,22 @@ var os = require("os");
 var CACHE_DIR = path.join(os.homedir(), ".cache", "mmm-newswire");
 var STATE_FILE = path.join(CACHE_DIR, "state.json");
 var UA = "MMM-Newswire/1.0 (MagicMirror smart mirror)";
+
+/* How long to let one address family's connection attempt run before falling
+ * back to the other. Node's default is 250ms, which is too short here.
+ *
+ * This LAN publishes AAAA records but has no working IPv6 route, so every
+ * dual-stack host fails over to IPv4 - and Hacker News is served from its own
+ * machines in the US, about 1.3s away from Perth. The IPv4 attempt was being
+ * abandoned at 250ms and the whole fetch reported ETIMEDOUT, while curl pulled
+ * the same URL down in 1.2s. Every other feed here sits on a CDN with an
+ * Australian edge and answers well inside 250ms, which is why Hacker News was
+ * the only one that ever failed.
+ *
+ * Process-global, so it applies to other modules' requests too. That is
+ * acceptable: it only comes into play once an address family has already
+ * failed, and there waiting three seconds beats giving up in a quarter of one. */
+var CONNECT_ATTEMPT_TIMEOUT_MS = 3000;
 
 var NAMED_ENTITIES = {
 	amp: "&", lt: "<", gt: ">", quot: "\"", apos: "'", nbsp: " ",
@@ -175,6 +192,11 @@ module.exports = NodeHelper.create({
 		 * (so the first poll of the day refetches every feed in full) and the
 		 * headlines (so the ticker would sit empty until the fetches land). */
 		this.state = Object.create(null);
+
+		// Guarded: added in Node 20.6, and the mirror tracks upstream.
+		if (typeof net.setDefaultAutoSelectFamilyAttemptTimeout === "function") {
+			net.setDefaultAutoSelectFamilyAttemptTimeout(CONNECT_ATTEMPT_TIMEOUT_MS);
+		}
 		console.log("[MMM-Newswire] Node helper started");
 	},
 
