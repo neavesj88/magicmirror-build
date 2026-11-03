@@ -1,0 +1,172 @@
+/* MMM-Newswire.
+ *
+ * Every animation here moves transform and opacity only (plus clip-path for
+ * the wipe, which Chromium also composites). Nothing animates a property that
+ * forces layout or a text repaint: the page is rotated 90 degrees for the
+ * portrait panel, so a repainting animation has to re-rasterise through that
+ * rotation every frame, which is exactly the stutter to avoid on an N3350.
+ */
+
+.newswire {
+	position: relative;
+	width: 100%;
+}
+
+.newswire-stage {
+	position: relative;
+	height: var(--nw-height, 74px);
+	overflow: hidden;
+	/* Keeps the animating layers from invalidating anything outside the bar. */
+	contain: layout paint;
+}
+
+/* ---- one headline at a time: roll, fade, wipe ---- */
+
+.newswire-item {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	box-sizing: border-box;
+	font-size: var(--nw-font, 26px);
+	font-weight: 300;
+	color: inherit;
+	line-height: 1.2;
+}
+
+.newswire-anim-roll .newswire-item,
+.newswire-anim-fade .newswire-item,
+.newswire-anim-wipe .newswire-item {
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	height: 100%;
+	padding: 0 24px;
+	opacity: 1;
+	transform: translate3d(0, 0, 0);
+	will-change: transform, opacity;
+	backface-visibility: hidden;
+	transition: opacity var(--nw-trans, 700ms) ease, transform var(--nw-trans, 700ms) ease;
+}
+
+.newswire-anim-roll .newswire-item.nw-enter { opacity: 0; transform: translate3d(0, 100%, 0); }
+.newswire-anim-roll .newswire-item.nw-exit { opacity: 0; transform: translate3d(0, -100%, 0); }
+
+.newswire-anim-fade .newswire-item.nw-enter { opacity: 0; }
+.newswire-anim-fade .newswire-item.nw-exit { opacity: 0; }
+
+
+/* The headline writes on left to right, then cuts. clip-path is transitioned
+ * only in this mode - it is the one animation that needs it. */
+.newswire-anim-wipe .newswire-item {
+	clip-path: inset(0 0 0 0);
+	transition: opacity var(--nw-trans, 700ms) ease, clip-path var(--nw-trans, 700ms) ease-out;
+}
+.newswire-anim-wipe .newswire-item.nw-enter { opacity: 1; clip-path: inset(0 100% 0 0); }
+.newswire-anim-wipe .newswire-item.nw-exit { opacity: 0; }
+
+/* Fade and wipe are sequenced, not crossed: the old headline leaves first and
+ * the new one arrives once it has gone. Overlapped, they put two lines of
+ * white text in the same centred position for the length of the transition,
+ * which on a dark bar is simply unreadable - and unlike the roll, neither of
+ * these moves the outgoing headline out of the way. The delay applies to the
+ * arriving element only; the leaving one starts at once.
+ *
+ * This has to come after both blocks above: a `transition` shorthand resets
+ * transition-delay to zero, so declaring the delay before the wipe's shorthand
+ * silently did nothing. */
+.newswire-anim-fade .newswire-item,
+.newswire-anim-wipe .newswire-item { transition-delay: var(--nw-trans, 700ms); }
+.newswire-anim-fade .newswire-item.nw-exit,
+.newswire-anim-wipe .newswire-item.nw-exit { transition-delay: 0ms; }
+
+/* ---- continuous marquee ---- */
+
+.newswire-strip {
+	position: absolute;
+	top: 0;
+	left: 0;
+	height: 100%;
+	display: flex;
+	align-items: center;
+	/* max-content, so scrollWidth is the true content width - an absolutely
+	 * positioned box otherwise shrink-to-fits to the containing block and the
+	 * measured width would be capped at the screen. */
+	width: max-content;
+	white-space: nowrap;
+	will-change: transform;
+	backface-visibility: hidden;
+}
+
+.newswire-anim-marquee .newswire-item {
+	position: static;
+	height: 100%;
+	flex: 0 0 auto;
+}
+
+/* A crawling headline must not be truncated - it has the whole pass to arrive. */
+.newswire-anim-marquee .newswire-title {
+	overflow: visible;
+	text-overflow: clip;
+	max-width: none;
+}
+
+.newswire-sep {
+	flex: 0 0 auto;
+	opacity: 0.35;
+	margin: 0 20px;
+	font-size: var(--nw-font, 26px);
+}
+
+/* ---- the parts of a headline ---- */
+
+.newswire-source {
+	flex: 0 0 auto;
+	font-size: var(--nw-source-font, 15px);
+	letter-spacing: 1px;
+	text-transform: uppercase;
+	opacity: 0.45;
+	margin-right: 14px;
+}
+
+.newswire-title {
+	/* min-width:0 lets a flex child actually shrink, which is what makes the
+	 * ellipsis appear instead of the headline pushing the bar wider. */
+	min-width: 0;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+	opacity: 0.9;
+}
+
+.newswire-age {
+	flex: 0 0 auto;
+	font-size: var(--nw-source-font, 15px);
+	opacity: 0.35;
+	margin-left: 14px;
+}
+
+/* ---- status ---- */
+
+.newswire-offline {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	height: var(--nw-height, 74px);
+	font-size: var(--nw-source-font, 15px);
+	letter-spacing: 2px;
+	text-transform: uppercase;
+	opacity: 0.4;
+}
+
+/* Marks the headlines as old rather than hiding the fact. Deliberately small:
+ * it is a footnote to the ticker, not an alarm. */
+.newswire-stale {
+	position: absolute;
+	right: 10px;
+	bottom: 2px;
+	font-size: 11px;
+	letter-spacing: 2px;
+	text-transform: uppercase;
+	opacity: 0.3;
+}

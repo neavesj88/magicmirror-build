@@ -87,22 +87,47 @@ let config = {
 			}
 		},
 		{
-			module: "newsfeed",
+			/* Our own ticker, in place of the stock newsfeed module.
+			 *
+			 * The stock one polls every five minutes and sends no cache
+			 * validator, so it re-downloaded every feed in full 288 times a
+			 * day - about 33MB, most of it the Guardian's 114-item feed. This
+			 * fetches four-hourly and revalidates, which comes to about
+			 * 0.25MB a day across more sources than the old list had.
+			 *
+			 * animation: "roll" | "fade" | "marquee" | "wipe". Roll is the
+			 * departures-board lift; marquee is the continuous crawl, whose
+			 * speed is set in pixels per second by marqueeSpeed (223).
+			 *
+			 * Feed order sets the interleave, and decides which source is
+			 * credited when two carry the same story - ABC News and ABC
+			 * Business share their lead most days. */
+			module: "MMM-Newswire",
 			position: "bottom_bar",
 			config: {
+				animation: "roll",
 				feeds: [
-					{ title: "Where's Wally", url: "https://neaves.au/wally/feed.xml" },
-					{ title: "neaves.au", url: "https://neaves.au/feed.xml" },
-					{ title: "ABC News", url: "https://www.abc.net.au/news/feed/51120/rss.xml" },
-					{ title: "SBS News", url: "https://www.sbs.com.au/news/feed" },
-					{ title: "The Guardian AU", url: "https://www.theguardian.com/au/rss" },
+					{ title: "ABC News", url: "https://www.abc.net.au/news/feed/51120/rss.xml", maxItems: 6 },
+					{ title: "SBS News", url: "https://www.sbs.com.au/news/feed", maxItems: 6 },
+					{ title: "ABC Business", url: "https://www.abc.net.au/news/feed/51892/rss.xml", maxItems: 5 },
+					{ title: "MarketWatch", url: "https://feeds.content.dowjones.io/public/rss/mw_topstories", maxItems: 5 },
+					{ title: "Investing.com", url: "https://www.investing.com/rss/news_285.rss", maxItems: 4 },
+					{ title: "RBA", url: "https://www.rba.gov.au/rss/rss-cb-media-releases.xml", maxItems: 2 },
+					{ title: "Hacker News", url: "https://news.ycombinator.com/rss", maxItems: 6 },
+					// Neither neaves.au feed belongs here. The travel posts are the
+					// map's job - MMM-WallyMap already shows the trip, chapter, post
+					// title and both endpoints - and the blog has its own place on
+					// the site. This bar is news only.
+					//
+					// Measured and working, left off only to keep the rotation
+					// short - uncomment to add them:
+					// { title: "Ars Technica", url: "https://feeds.arstechnica.com/arstechnica/index", maxItems: 4 },
+					// { title: "CoinDesk", url: "https://www.coindesk.com/arc/outboundfeeds/rss/", maxItems: 3 },
+					//
+					// Avoid: theregister.com is 318KB a fetch, and hnrss.org
+					// answers 502 often enough not to rely on it. The feed
+					// above is Hacker News' own and stays up.
 				],
-				showSourceTitle: true,
-				showPublishDate: true,
-				broadcastNewsFeeds: true,
-				broadcastNewsUpdates: true,
-				updateInterval: 30000,
-				reloadInterval: 300000,
 			}
 		},
 	]

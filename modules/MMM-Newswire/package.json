@@ -1,0 +1,1 @@
+{ "name": "MMM-Newswire", "version": "1.0.0", "description": "Low-bandwidth multi-source news ticker", "main": "node_helper.js", "dependencies": {} }
