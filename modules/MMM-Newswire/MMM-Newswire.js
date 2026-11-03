@@ -97,18 +97,30 @@ Module.register("MMM-Newswire", {
 		this.status = payload;
 
 		if (!this.loaded) {
-			// First data (or first cached data) - swap the placeholder for the
-			// real stage.
 			this.loaded = true;
 			this.updateDom(1000);
 			return;
 		}
+
+		/* this.stage is set only while the ticker itself is rendered - the
+		 * placeholder and offline paths leave it null. So a mismatch between
+		 * "we have headlines" and "the ticker is on screen" means the DOM is
+		 * showing the wrong thing and has to be rebuilt.
+		 *
+		 * This is what stranded the first deployment on "Fetching headlines":
+		 * the helper's opening broadcast is empty (it fires before any network
+		 * happens), that renders the placeholder and nulls the stage, and the
+		 * real headlines a few seconds later then had nothing to attach to. */
+		if (!this.items.length !== !this.stage) {
+			this.updateDom(1000);
+			return;
+		}
+
 		/* Otherwise leave the DOM alone. The running cycle reads this.items on
 		 * every advance, so new headlines appear at the next change without
 		 * interrupting the one on screen. Calling updateDom here would restart
 		 * the animation mid-headline four times an hour for no reason. */
 		if (this.items.length && !this.isCycling()) this.startCycleWhenReady();
-		if (!this.items.length) this.updateDom(1000);
 	},
 
 	isCycling: function () {
