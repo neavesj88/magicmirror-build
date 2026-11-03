@@ -107,6 +107,21 @@ was silently pointless until both headers were overridden with
 `Cache-Control: max-age=0`. With the override, five of the nine feeds
 revalidate instead of one — three of the seven configured here.
 
+## The Hacker News connection
+
+Node abandons a connection attempt after 250 ms and switches address family
+(Happy Eyeballs). The mirror's LAN publishes AAAA records but has no working
+IPv6 route, and Hacker News is served from its own machines in the US, about
+1.3 s away from Perth — so the IPv4 attempt was being cancelled at 250 ms and
+the fetch reported `ETIMEDOUT`, while `curl -4` pulled the same URL down in
+1.2 s. Every other feed here is on a CDN with an Australian edge and answers
+well inside 250 ms, which is why Hacker News was the only one that failed.
+
+`node_helper.js` raises the limit to 3 s with
+`net.setDefaultAutoSelectFamilyAttemptTimeout()`. That is process-global, so
+it affects other modules' requests too — acceptable, since it only applies
+once an address family has already failed.
+
 ## Behaviour when things break
 
 - A feed that fails keeps its previous headlines on screen and retries sooner
