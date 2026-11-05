@@ -1,0 +1,63 @@
+<meta charset="utf-8"><title>Ticker animation options</title>
+<style>
+:root{--fg:#fff}
+body{background:#000;color:rgba(255,255,255,.9);font-family:Roboto,Helvetica,Arial,sans-serif;
+     font-weight:300;margin:0;padding:26px 30px}
+h1{font-size:15px;letter-spacing:3px;text-transform:uppercase;opacity:.45;font-weight:400;margin:0 0 4px}
+p.note{font-size:13px;opacity:.5;margin:0 0 26px;max-width:900px;line-height:1.5}
+.opt{margin:0 0 30px;border-top:1px solid rgba(255,255,255,.14);padding-top:12px}
+.lab{font-size:12px;letter-spacing:2px;text-transform:uppercase;opacity:.5;margin-bottom:2px}
+.sub{font-size:12px;opacity:.38;margin-bottom:12px}
+.stage{position:relative;height:74px;overflow:hidden;background:#000}
+.src{font-size:14px;opacity:.45;margin-right:14px;letter-spacing:1px;text-transform:uppercase}
+.hl{font-size:26px}
+.fade,.roll,.wipe{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  gap:0;opacity:0;animation-iteration-count:infinite;animation-timing-function:ease-in-out}
+.fade{animation-name:fadeSeq}
+@keyframes fadeSeq{0%{opacity:0}3%{opacity:1}14%{opacity:1}17%{opacity:0}100%{opacity:0}}
+.roll{animation-name:rollSeq}
+@keyframes rollSeq{0%{opacity:0;transform:translateY(42px)}3%{opacity:1;transform:translateY(0)}
+ 14%{opacity:1;transform:translateY(0)}17%{opacity:0;transform:translateY(-42px)}100%{opacity:0;transform:translateY(-42px)}}
+.wipe{animation-name:wipeSeq;justify-content:center}
+@keyframes wipeSeq{0%{opacity:0;clip-path:inset(0 100% 0 0)}2%{opacity:1}
+ 8%{opacity:1;clip-path:inset(0 0 0 0)}15%{opacity:1;clip-path:inset(0 0 0 0)}
+ 17%{opacity:0;clip-path:inset(0 0 0 0)}100%{opacity:0}}
+.mq{white-space:nowrap;display:inline-block;padding-left:100%;animation:mq 34s linear infinite;
+    font-size:26px;line-height:74px}
+@keyframes mq{0%{transform:translateX(0)}100%{transform:translateX(-100%)}}
+.mi{margin:0 10px}.sep{opacity:.35;margin:0 18px}
+</style>
+<h1>MMM-Newswire &mdash; ticker animation options</h1>
+<p class="note">Real headlines, pulled live. Rendered white-on-black at the size the mirror uses.
+Each option cycles so you can judge the motion, not just the look.</p>
+
+<div class="opt"><div class="lab">A &nbsp;Cross-fade</div>
+<div class="sub">What you have now. Calmest; nothing moves, so nothing catches the eye in a mirror.</div>
+<div class="stage"><div class="fade" style="animation-delay:0.0s;animation-duration:18s"><span class="src">ABC News</span><span class="hl">Breaking: Ciaron Maher takes Melbourne Cup trifecta with Point of Law win</span></div>
+<div class="fade" style="animation-delay:3.0s;animation-duration:18s"><span class="src">ABC News</span><span class="hl">Socceroos, Matildas take Football Australia to court</span></div>
+<div class="fade" style="animation-delay:6.0s;animation-duration:18s"><span class="src">ABC News</span><span class="hl">Mark Latham's ex found guilty of recording intimate image</span></div>
+<div class="fade" style="animation-delay:9.0s;animation-duration:18s"><span class="src">Guardian AU</span><span class="hl">High inflation and interest rates: can Labor escape the blame? - podcast</span></div>
+<div class="fade" style="animation-delay:12.0s;animation-duration:18s"><span class="src">Guardian AU</span><span class="hl">I treated Sophie as if she were human. The very next day she betrayed me | Hugh Riminton</span></div>
+<div class="fade" style="animation-delay:15.0s;animation-duration:18s"><span class="src">Guardian AU</span><span class="hl">The Gilded Age review – what did we do to deserve such a terrible stinker?</span></div></div></div>
+
+<div class="opt"><div class="lab">B &nbsp;Vertical roll</div>
+<div class="sub">Headline lifts out, next rises in. Reads as a departures board. Draws the eye once per change.</div>
+<div class="stage"><div class="roll" style="animation-delay:0.0s;animation-duration:18s"><span class="src">MarketWatch</span><span class="hl">Here’s why Palantir’s stock is down despite a ‘bombastic’ quarter</span></div>
+<div class="roll" style="animation-delay:3.0s;animation-duration:18s"><span class="src">MarketWatch</span><span class="hl">Apple’s iPhone business is booming. Here’s why the stock is falling anyway.</span></div>
+<div class="roll" style="animation-delay:6.0s;animation-duration:18s"><span class="src">MarketWatch</span><span class="hl">Nasdaq-100 tumbles into its third correction this year as AI worries mount</span></div>
+<div class="roll" style="animation-delay:9.0s;animation-duration:18s"><span class="src">Hacker News</span><span class="hl">The SEC Should Block Anthropic's IPO to Protect the Public</span></div>
+<div class="roll" style="animation-delay:12.0s;animation-duration:18s"><span class="src">Hacker News</span><span class="hl">Ubuntu still has not released patch for Linux 0day RCE in almost 3 weeks</span></div>
+<div class="roll" style="animation-delay:15.0s;animation-duration:18s"><span class="src">Hacker News</span><span class="hl">Astra can read and write weights to improve Qwen</span></div></div></div>
+
+<div class="opt"><div class="lab">C &nbsp;Continuous marquee</div>
+<div class="sub">Classic news crawl, never stops. Always something moving; you must wait for text to arrive.</div>
+<div class="stage"><div class="mq"><span class="mi"><span class="src">ABC News</span>Breaking: Ciaron Maher takes Melbourne Cup trifecta with Point of Law win</span><span class="sep">&bull;</span><span class="mi"><span class="src">ABC News</span>Socceroos, Matildas take Football Australia to court</span><span class="sep">&bull;</span><span class="mi"><span class="src">ABC News</span>Mark Latham's ex found guilty of recording intimate image</span><span class="sep">&bull;</span><span class="mi"><span class="src">Guardian AU</span>High inflation and interest rates: can Labor escape the blame? - podcast</span><span class="sep">&bull;</span><span class="mi"><span class="src">Guardian AU</span>I treated Sophie as if she were human. The very next day she betrayed me | Hugh Riminton</span><span class="sep">&bull;</span><span class="mi"><span class="src">Guardian AU</span>The Gilded Age review – what did we do to deserve such a terrible stinker?</span><span class="sep">&bull;</span><span class="mi"><span class="src">MarketWatch</span>Here’s why Palantir’s stock is down despite a ‘bombastic’ quarter</span><span class="sep">&bull;</span><span class="mi"><span class="src">MarketWatch</span>Apple’s iPhone business is booming. Here’s why the stock is falling anyway.</span><span class="sep">&bull;</span><span class="mi"><span class="src">MarketWatch</span>Nasdaq-100 tumbles into its third correction this year as AI worries mount</span><span class="sep">&bull;</span><span class="mi"><span class="src">Hacker News</span>The SEC Should Block Anthropic's IPO to Protect the Public</span><span class="sep">&bull;</span><span class="mi"><span class="src">Hacker News</span>Ubuntu still has not released patch for Linux 0day RCE in almost 3 weeks</span><span class="sep">&bull;</span><span class="mi"><span class="src">Hacker News</span>Astra can read and write weights to improve Qwen</span><span class="sep">&bull;</span><span class="mi"><span class="src">SBS News</span>Meta touted its teen safety tool. What it didn't mention was that barely anyone was using it</span><span class="sep">&bull;</span><span class="mi"><span class="src">SBS News</span>The Queen of Country: Dolly Parton's life in pictures</span><span class="sep">&bull;</span><span class="mi"><span class="src">SBS News</span>Trump threatens to rename Lake Ontario as Canada hits back at US tariffs</span><span class="sep">&bull;</span></div></div></div>
+
+<div class="opt"><div class="lab">D &nbsp;Wipe reveal</div>
+<div class="sub">Headline writes on left to right, holds, cuts. Teletype feel, suits the wireframe map above it.</div>
+<div class="stage"><div class="wipe" style="animation-delay:0.0s;animation-duration:18s"><span class="src">ABC News</span><span class="hl">Breaking: Ciaron Maher takes Melbourne Cup trifecta with Point of Law win</span></div>
+<div class="wipe" style="animation-delay:3.0s;animation-duration:18s"><span class="src">ABC News</span><span class="hl">Socceroos, Matildas take Football Australia to court</span></div>
+<div class="wipe" style="animation-delay:6.0s;animation-duration:18s"><span class="src">ABC News</span><span class="hl">Mark Latham's ex found guilty of recording intimate image</span></div>
+<div class="wipe" style="animation-delay:9.0s;animation-duration:18s"><span class="src">Guardian AU</span><span class="hl">High inflation and interest rates: can Labor escape the blame? - podcast</span></div>
+<div class="wipe" style="animation-delay:12.0s;animation-duration:18s"><span class="src">Guardian AU</span><span class="hl">I treated Sophie as if she were human. The very next day she betrayed me | Hugh Riminton</span></div>
+<div class="wipe" style="animation-delay:15.0s;animation-duration:18s"><span class="src">Guardian AU</span><span class="hl">The Gilded Age review – what did we do to deserve such a terrible stinker?</span></div></div></div>

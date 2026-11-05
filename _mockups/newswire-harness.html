@@ -1,0 +1,129 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>MMM-Newswire harness</title>
+<!-- Runs the real MMM-Newswire.js and its real stylesheet against the real
+     merged headlines, with just enough of the MagicMirror module API shimmed
+     to make it run outside the mirror. Portrait panel width, mirror styling. -->
+<link rel="stylesheet" href="../modules/MMM-Newswire/MMM-Newswire.css">
+<style>
+  body { background:#000; color:rgba(255,255,255,.9); margin:0; padding:18px 0 40px;
+         font-family:Roboto,Helvetica,Arial,sans-serif; font-weight:300; }
+  h1 { font-size:13px; letter-spacing:3px; text-transform:uppercase; opacity:.4;
+       font-weight:400; margin:0 26px 16px; }
+  .case { width:1080px; margin:0 auto 26px; }
+  .cap { font-size:12px; letter-spacing:2px; text-transform:uppercase; opacity:.45;
+         margin:0 0 4px; display:flex; justify-content:space-between; }
+  .fps { opacity:.75; font-variant-numeric:tabular-nums; }
+  .host { border-top:1px solid rgba(255,255,255,.13); border-bottom:1px solid rgba(255,255,255,.13); }
+</style>
+<h1>MMM-Newswire &mdash; live headlines, real module code, 1080px panel width</h1>
+<div id="cases"></div>
+
+<script>
+// ---- MagicMirror module API shim -------------------------------------------
+const registry = {};
+window.Module = {
+  register(name, def) { registry[name] = def; },
+};
+
+function makeInstance(def, overrides, payload) {
+  const inst = Object.create(def);
+  inst.name = "MMM-Newswire";
+  inst.config = Object.assign({}, def.defaults, overrides);
+  inst.data = { path: "" };
+  inst.sent = [];
+  inst.sendSocketNotification = function (n, p) { this.sent.push([n, p]); };
+  inst.updateDom = function () {
+    const dom = this.getDom();
+    this.host.textContent = "";
+    this.host.appendChild(dom);
+  };
+  return inst;
+}
+
+function mount(label, overrides) {
+  const wrap = document.createElement("div");
+  wrap.className = "case";
+  const cap = document.createElement("div");
+  cap.className = "cap";
+  const name = document.createElement("span");
+  name.textContent = label;
+  const fps = document.createElement("span");
+  fps.className = "fps";
+  cap.appendChild(name); cap.appendChild(fps);
+  const host = document.createElement("div");
+  host.className = "host";
+  wrap.appendChild(cap); wrap.appendChild(host);
+  document.getElementById("cases").appendChild(wrap);
+
+  const inst = makeInstance(registry["MMM-Newswire"], overrides);
+  inst.host = host;
+  inst.start();
+  // Stand in for the node helper answering the config with the cached items.
+  inst.socketNotificationReceived("NEWSWIRE_ITEMS", window.__payload);
+  inst.updateDom();
+  return { inst, fpsEl: fps };
+}
+
+// ---- frame-rate probe ------------------------------------------------------
+// Counts real painted frames, which is the only honest way to answer whether
+// the crawl is smooth on a given machine.
+let frames = 0, lastReport = performance.now(), fpsTargets = [];
+function tick(now) {
+  frames++;
+  if (now - lastReport >= 1000) {
+    const fps = Math.round((frames * 1000) / (now - lastReport));
+    fpsTargets.forEach((el) => { el.textContent = fps + " fps"; });
+    frames = 0; lastReport = now;
+  }
+  requestAnimationFrame(tick);
+}
+
+fetch("headlines.json").then((r) => r.json()).then((payload) => {
+  window.__payload = payload;
+  const cases = [
+    ["B — vertical roll (default)", { animation: "roll" }],
+    ["C — continuous marquee, 223 px/s", { animation: "marquee" }],
+    ["A — cross-fade", { animation: "fade" }],
+    ["D — wipe reveal", { animation: "wipe" }],
+    ["Offline state (no items)", { animation: "roll", __empty: true }],
+  ];
+  cases.forEach(([label, over]) => {
+    if (over.__empty) {
+      // Same code path, but with an empty payload and a fetch already attempted.
+      const m = mount(label, { animation: "roll" });
+      m.inst.items = [];
+      m.inst.status = { feedsConfigured: 9, feedsWithItems: 0, lastFetchAt: Date.now() };
+      m.inst.updateDom();
+      return;
+    }
+    const m = mount(label, over);
+    fpsTargets.push(m.fpsEl);
+  });
+  requestAnimationFrame(tick);
+
+  // Regression: the real startup order. The node helper broadcasts an EMPTY
+  // payload before any network happens (so a cached restart shows instantly),
+  // and the headlines follow seconds later. That second payload must replace
+  // the placeholder - on the first deployment it did not, and the mirror sat
+  // on "Fetching headlines" with 27 headlines cached behind it.
+  const probe = mount("Regression — empty payload, then headlines", { animation: "roll" });
+  probe.inst.items = [];
+  probe.inst.loaded = false;
+  probe.inst.socketNotificationReceived("NEWSWIRE_ITEMS",
+    { items: [], feedsConfigured: 7, feedsWithItems: 0, lastFetchAt: null });
+  setTimeout(() => {
+    probe.inst.socketNotificationReceived("NEWSWIRE_ITEMS", payload);
+    // The cycle waits for the stage to be attached and measurable, retrying
+    // every 100ms, so give it a few of those before asserting.
+    setTimeout(() => {
+      const ok = !!probe.inst.host.querySelector(".newswire-stage .newswire-item");
+      probe.fpsEl.textContent = ok ? "PASS — headlines replaced the placeholder"
+                                   : "FAIL — still showing the placeholder";
+      probe.fpsEl.style.color = ok ? "#6f6" : "#f66";
+      window.__regression = ok ? "PASS" : "FAIL";
+    }, 500);
+  }, 1200);
+});
+</script>
+<script src="../modules/MMM-Newswire/MMM-Newswire.js"></script>

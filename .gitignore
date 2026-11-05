@@ -4,6 +4,3 @@ node_modules/
 
 # screenshots pulled off the mirror for reference
 mirror-*.png
-
-# local design mockups and the module test harness
-_mockups/
