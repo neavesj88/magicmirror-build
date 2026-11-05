@@ -101,12 +101,33 @@ let config = {
 			 *
 			 * Feed order sets the interleave, and decides which source is
 			 * credited when two carry the same story - ABC News and ABC
-			 * Business share their lead most days. */
+			 * Business share their lead most days.
+			 *
+			 * weight is slots in the rotation. The wire is weighted far above
+			 * everything else, and freshWeight lifts it further for the first
+			 * freshHours after a new report lands, so the day's brief takes
+			 * over the bar and then settles back. */
 			module: "MMM-Newswire",
 			position: "bottom_bar",
 			config: {
 				animation: "roll",
 				feeds: [
+					/* S2 Underground's The Wire. type: "s2bluf" is what makes
+					 * this worth having: the feed itself carries only dated
+					 * video titles, so the module follows each report's link
+					 * and lifts the //BLUF: ... // block off the page. See the
+					 * module README - it is the one feed here that depends on
+					 * someone else's page layout. */
+					{
+						title: "S2 Wire",
+						url: "https://s2underground.com/feed",
+						type: "s2bluf",
+						maxReports: 3,
+						maxItems: 9,
+						weight: 4,
+						freshWeight: 7,
+						freshHours: 30,
+					},
 					{ title: "ABC News", url: "https://www.abc.net.au/news/feed/51120/rss.xml", maxItems: 6 },
 					{ title: "SBS News", url: "https://www.sbs.com.au/news/feed", maxItems: 6 },
 					{ title: "ABC Business", url: "https://www.abc.net.au/news/feed/51892/rss.xml", maxItems: 5 },

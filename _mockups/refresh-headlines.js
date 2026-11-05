@@ -55,6 +55,9 @@ helper.start();
 			console.log("  " + feed.title.padEnd(14) + " FAILED: " + e.message);
 		}
 	}
+	// Persist, exactly as the mirror does. Without this every local run starts
+	// cold, re-downloads every feed in full, and never exercises the 304 path.
+	await helper.saveState();
 	helper.broadcast();
 
 	if (!payload || !payload.items.length) {

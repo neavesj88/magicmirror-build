@@ -1,10 +1,22 @@
 {
  "items": [
   {
+   "source": "S2 Wire",
+   "title": "AMERICAN MIDTERM ELECTIONS RESULT IN MAJOR VICTORIES FOR DEMOCRATS.",
+   "ts": 1793831047000,
+   "link": "https://s2underground.com/work/doc/a2883007dd4bd1c6"
+  },
+  {
    "source": "ABC News",
    "title": "Breaking: New wave of bomb threats hits passenger flights across Europe",
    "ts": 1793871692000,
    "link": "https://www.abc.net.au/news/2026-11-05/bomb-threat-diverts-planes-across-europe/107352984"
+  },
+  {
+   "source": "S2 Wire",
+   "title": "CYBERATTACKS CONTINUE AROUND EUROPE, GROWING IN SCALE AND IMPACT.",
+   "ts": 1793831047000,
+   "link": "https://s2underground.com/work/doc/a2883007dd4bd1c6"
   },
   {
    "source": "SBS News",
@@ -13,10 +25,22 @@
    "link": "https://www.sbs.com.au/news/article/meta-touted-teen-safety-tool-barely-anyone-using-it/brm5k3tng"
   },
   {
+   "source": "S2 Wire",
+   "title": "WARTIME PREPARATIONS CONTINUE AROUND MIDDLE EAST.",
+   "ts": 1793831047000,
+   "link": "https://s2underground.com/work/doc/a2883007dd4bd1c6"
+  },
+  {
+   "source": "S2 Wire",
+   "title": "ELECTION DAY CONTINUES IN UNITED STATES.",
+   "ts": 1793739646000,
+   "link": "https://s2underground.com/work/doc/30a0ac6a67624f78"
+  },
+  {
    "source": "MarketWatch",
-   "title": "‘My life could be cut short’: I’m 55, married with $4.3 million and have a brain tumor. Should I buy a $210,000 custom Porsche?",
-   "ts": 1793878200000,
-   "link": "https://www.marketwatch.com/story/my-life-could-be-cut-short-im-55-married-with-4-3-million-and-have-a-brain-tumor-should-i-buy-a-210-000-custom-porsche-ed825ada?mod=mw_rss_topstories"
+   "title": "A strategist draws a 1980s parallel to argue bipartisanship could power a ‘bull stampede’",
+   "ts": 1793879760000,
+   "link": "https://www.marketwatch.com/story/a-strategist-draws-a-1980s-parallel-to-argue-bipartisanship-could-power-a-bull-stampede-609ddc9b?mod=mw_rss_topstories"
   },
   {
    "source": "Investing.com",
@@ -25,16 +49,52 @@
    "link": "https://www.investing.com/news/stock-market-news/deutsche-bank-forecasts-sp-500-to-hit-7000-by-end-of-2025-3741586"
   },
   {
+   "source": "S2 Wire",
+   "title": "MULTIPLE BOMB THREATS CALLED IN ON AIRCRAFT IN EUROPE.",
+   "ts": 1793739646000,
+   "link": "https://s2underground.com/work/doc/30a0ac6a67624f78"
+  },
+  {
    "source": "RBA",
    "title": "Statement by the Monetary Policy Board: Monetary Policy Decision",
    "ts": 1793676600000,
    "link": "https://www.rba.gov.au/media-releases/2026/mr-26-30.html"
   },
   {
+   "source": "S2 Wire",
+   "title": "LIMITED STRIKES REPORTED IN IRAN AS SEVERAL TARGETS STRUCK ON QESHM ISLAND OVERNIGHT.",
+   "ts": 1793739646000,
+   "link": "https://s2underground.com/work/doc/30a0ac6a67624f78"
+  },
+  {
    "source": "Hacker News",
    "title": "Awesome repositories are no longer awesome",
    "ts": 1793877411000,
    "link": "https://erikgahner.github.io/posts/2026/awesome-repositories-are-no-longer-awesome/"
+  },
+  {
+   "source": "S2 Wire",
+   "title": "MAJOR TARGETING OF RUSSIAN/UKRAINIAN ENERGY INFRASTRUCTURE REMAINS CONSTANT.",
+   "ts": 1793739646000,
+   "link": "https://s2underground.com/work/doc/30a0ac6a67624f78"
+  },
+  {
+   "source": "S2 Wire",
+   "title": "CYBERATTACKS CONTINUE TO AFFECT REFRIGERATION UNITS AT SUPERMARKET CHAINS IN EUROPE.",
+   "ts": 1793665208000,
+   "link": "https://s2underground.com/work/doc/dbcac0593fb5eee1"
+  },
+  {
+   "source": "S2 Wire",
+   "title": "PLANE CRASH REPORTED IN FLORIDA.",
+   "ts": 1793665208000,
+   "link": "https://s2underground.com/work/doc/dbcac0593fb5eee1"
+  },
+  {
+   "source": "Hacker News",
+   "title": "OpenSSH 10.6p2 has been released with a workaround for a critical vulnerability",
+   "ts": 1793871977000,
+   "link": "https://hachyderm.io/@damienmiller/117563026759098135"
   },
   {
    "source": "ABC News",
@@ -56,9 +116,9 @@
   },
   {
    "source": "MarketWatch",
-   "title": "Research firm declares ‘end of the AI trade as we know it’ — and Asian tech stocks reflect the shift",
-   "ts": 1793877720000,
-   "link": "https://www.marketwatch.com/story/research-firm-declares-end-of-the-ai-trade-as-we-know-it-and-asian-tech-stocks-reflect-the-shift-25ac8e8f?mod=mw_rss_topstories"
+   "title": "‘I have no financial safety net’: I’m 66, rely on Social Security and have just $500 in savings. What hope do I have?",
+   "ts": 1793879100000,
+   "link": "https://www.marketwatch.com/story/i-have-no-financial-safety-net-im-66-rely-on-social-security-and-have-500-in-savings-what-politician-speaks-for-me-be2126cb?mod=mw_rss_topstories"
   },
   {
    "source": "Investing.com",
@@ -68,9 +128,9 @@
   },
   {
    "source": "Hacker News",
-   "title": "OpenSSH 10.6p2 has been released with a workaround for a critical vulnerability",
-   "ts": 1793871977000,
-   "link": "https://hachyderm.io/@damienmiller/117563026759098135"
+   "title": "Baidu released ERNIE 5.5 Flash Base",
+   "ts": 1793870952000,
+   "link": "https://ernie.baidu.com/release/ernie-5-5-flash-base/"
   },
   {
    "source": "ABC News",
@@ -92,9 +152,9 @@
   },
   {
    "source": "MarketWatch",
-   "title": "A prolonged war in Iran is the market’s real ‘black swan,’ says this strategist",
-   "ts": 1793874000000,
-   "link": "https://www.marketwatch.com/story/a-prolonged-war-in-iran-is-the-markets-real-black-swan-says-this-strategist-65d105c7?mod=mw_rss_topstories"
+   "title": "‘My life could be cut short’: I’m 55, married with $4.3 million and have a brain tumor. Should I buy a $210,000 custom Porsche?",
+   "ts": 1793878200000,
+   "link": "https://www.marketwatch.com/story/my-life-could-be-cut-short-im-55-married-with-4-3-million-and-have-a-brain-tumor-should-i-buy-a-210-000-custom-porsche-ed825ada?mod=mw_rss_topstories"
   },
   {
    "source": "Investing.com",
@@ -104,9 +164,9 @@
   },
   {
    "source": "Hacker News",
-   "title": "Baidu released ERNIE 5.5 Flash Base",
-   "ts": 1793870952000,
-   "link": "https://ernie.baidu.com/release/ernie-5-5-flash-base/"
+   "title": "Being a kid making games in the early 2000s",
+   "ts": 1793858033000,
+   "link": "https://jaytholen.net/teengamedev/"
   },
   {
    "source": "ABC News",
@@ -128,9 +188,9 @@
   },
   {
    "source": "MarketWatch",
-   "title": "My 93-year-old father changed his will at the 11th hour, leaving my brother his entire $500,000 estate. Can I challenge it?",
-   "ts": 1793873700000,
-   "link": "https://www.marketwatch.com/story/my-93-year-old-father-changed-his-will-at-the-11th-hour-leaving-my-brother-his-entire-500-000-estate-can-i-challenge-it-ecfc63d2?mod=mw_rss_topstories"
+   "title": "Research firm declares ‘end of the AI trade as we know it’ — and Asian tech stocks reflect the shift",
+   "ts": 1793877720000,
+   "link": "https://www.marketwatch.com/story/research-firm-declares-end-of-the-ai-trade-as-we-know-it-and-asian-tech-stocks-reflect-the-shift-25ac8e8f?mod=mw_rss_topstories"
   },
   {
    "source": "Investing.com",
@@ -140,9 +200,9 @@
   },
   {
    "source": "Hacker News",
-   "title": "Being a kid making games in the early 2000s",
-   "ts": 1793858033000,
-   "link": "https://jaytholen.net/teengamedev/"
+   "title": "Altera Announces Agilex 2X, a Complete FPGA and SoC Portfolio",
+   "ts": 1793857634000,
+   "link": "https://www.altera.com/newsroom/agilex-2x"
   },
   {
    "source": "SBS News",
@@ -158,15 +218,15 @@
   },
   {
    "source": "MarketWatch",
-   "title": "Toyota’s stock rallies after the company lowered sales guidance. Here’s how rare that is.",
-   "ts": 1793873700000,
-   "link": "https://www.marketwatch.com/story/toyota-stock-rallies-after-company-lowered-sales-guidance-heres-how-rare-that-is-c3d6c9bf?mod=mw_rss_topstories"
+   "title": "A prolonged war in Iran is the market’s real ‘black swan,’ says this strategist",
+   "ts": 1793874000000,
+   "link": "https://www.marketwatch.com/story/a-prolonged-war-in-iran-is-the-markets-real-black-swan-says-this-strategist-65d105c7?mod=mw_rss_topstories"
   },
   {
    "source": "Hacker News",
-   "title": "Altera Announces Agilex 2X, a Complete FPGA and SoC Portfolio",
-   "ts": 1793857634000,
-   "link": "https://www.altera.com/newsroom/agilex-2x"
+   "title": "Lemmings CSS Animation",
+   "ts": 1793854450000,
+   "link": "https://markblah.github.io/lemmings/"
   },
   {
    "source": "ABC News",
@@ -179,15 +239,9 @@
    "title": "Trump's visa crackdown plan could affect thousands seeking asylum in the US",
    "ts": 1787619903000,
    "link": "https://www.sbs.com.au/news/article/visa-crackdown-us-affect-seeking-asylum/bpyklwd1m"
-  },
-  {
-   "source": "Hacker News",
-   "title": "Lemmings CSS Animation",
-   "ts": 1793854450000,
-   "link": "https://markblah.github.io/lemmings/"
   }
  ],
- "feedsConfigured": 7,
- "feedsWithItems": 7,
- "lastFetchAt": 1793879168488
+ "feedsConfigured": 8,
+ "feedsWithItems": 8,
+ "lastFetchAt": 1793880424263
 }
