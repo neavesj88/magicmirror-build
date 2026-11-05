@@ -104,8 +104,13 @@
 	flex: 0 0 auto;
 }
 
-/* A crawling headline must not be truncated - it has the whole pass to arrive. */
+/* A crawling headline is never truncated and never wraps - it has the whole
+ * pass to arrive, and wrapping would break the strip measurement. */
 .newswire-anim-marquee .newswire-title {
+	display: inline;
+	-webkit-line-clamp: none;
+	line-clamp: none;
+	white-space: nowrap;
 	overflow: visible;
 	text-overflow: clip;
 	max-width: none;
@@ -129,13 +134,23 @@
 	margin-right: 14px;
 }
 
+/* Wraps to --nw-lines and ellipsises only past that.
+ *
+ * A single nowrap line was cutting a quarter of real headlines at the old
+ * 26px, and would have cut three quarters at 32px - so the larger text only
+ * works because it is allowed a second line. -webkit-line-clamp supplies its
+ * own ellipsis; text-overflow does not apply to a clamped box.
+ *
+ * min-width:0 is what lets a flex child actually shrink; without it the
+ * headline pushes the bar wider instead of wrapping. */
 .newswire-title {
-	/* min-width:0 lets a flex child actually shrink, which is what makes the
-	 * ellipsis appear instead of the headline pushing the bar wider. */
 	min-width: 0;
+	display: -webkit-box;
+	-webkit-line-clamp: var(--nw-lines, 2);
+	line-clamp: var(--nw-lines, 2);
+	-webkit-box-orient: vertical;
 	overflow: hidden;
-	white-space: nowrap;
-	text-overflow: ellipsis;
+	white-space: normal;
 	opacity: 0.9;
 }
 

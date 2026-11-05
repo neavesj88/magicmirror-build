@@ -21,9 +21,10 @@ Complete build scripts and config for a MagicMirror² smart mirror kiosk.
 - Custom MMM-BTCAud module (BTC/AUD price + 7-day chart)
 - Custom MMM-WallyMap module (white wireframe map of the current trip, pulled
   from the "Where's Wally" travel feed on neaves.au; hides itself when home)
-- Custom MMM-Newswire module (news ticker across seven feeds — AU news, finance
-  and Hacker News — with four selectable animations, four-hourly
-  refresh and conditional requests; replaces the stock `newsfeed` module)
+- Custom MMM-Newswire module (news ticker across eight feeds — S2 Underground's
+  The Wire, weighted to lead the rotation, plus AU news, finance and Hacker
+  News — with four selectable animations, four-hourly refresh and conditional
+  requests; replaces the stock `newsfeed` module)
 - MMM-Remote-Control (phone management)
 - WiFi config portal with hotspot failover
 - OpenSSH for headless admin

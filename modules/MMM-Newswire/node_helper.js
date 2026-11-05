@@ -181,6 +181,41 @@ function parseFeed(body, source, maxItems) {
 	return items.slice(0, maxItems);
 }
 
+/**
+ * Pull the BLUF sentences out of an S2 Underground report page.
+ *
+ * Their house format opens the report with the bottom line between a pair of
+ * double slashes:
+ *
+ *   //BLUF: AMERICAN MIDTERM ELECTIONS RESULT IN MAJOR VICTORIES FOR
+ *   DEMOCRATS. CYBERATTACKS CONTINUE AROUND EUROPE, GROWING IN SCALE AND
+ *   IMPACT.//
+ *
+ * which splits into two or three sentences of 50-70 characters - already the
+ * right length for a ticker. The bound on the match keeps a page that happens
+ * to contain "//" somewhere from swallowing the whole document.
+ *
+ * Returns [] rather than throwing if the page is not in that shape; the
+ * caller treats that as a failed fetch and keeps the previous lines.
+ */
+function extractBluf(html) {
+	var m = html.match(/\/\/\s*BLUF\s*:([\s\S]{0,4000}?)\/\//i);
+	if (!m) return [];
+
+	var text = clean(m[1])
+		// Place names in the BLUF are wrapped in links, and stripping the tags
+		// leaves a space before the punctuation that followed them.
+		.replace(/\s+([,.;:])/g, "$1")
+		.trim();
+	if (!text) return [];
+
+	return text.split(/(?<=[.!?])\s+/)
+		.map(function (s) { return s.trim(); })
+		// Drop fragments left by an abbreviation mid-sentence, and refuse a
+		// run-on that would only be ellipsised on the bar anyway.
+		.filter(function (s) { return s.length >= 12 && s.length <= 300; });
+}
+
 module.exports = NodeHelper.create({
 	start: function () {
 		this.config = null;
@@ -287,11 +322,18 @@ module.exports = NodeHelper.create({
 		this.timers[feed.url] = setTimeout(function () { self.runFeed(feed); }, delay + jitter);
 	},
 
-	fetchFeed: async function (feed) {
-		var st = this.state[feed.url] || (this.state[feed.url] = { items: [] });
+	/**
+	 * One conditional GET.
+	 *
+	 * `store` both supplies the validators and receives the new ones, so the
+	 * same routine serves a feed and an individual article page. Pass
+	 * hasContent=false to suppress the validators: a 304 is only useful when
+	 * there is something cached to fall back on.
+	 */
+	conditionalGet: async function (url, store, hasContent) {
 		var headers = {
 			"User-Agent": UA,
-			"Accept": "application/rss+xml, application/atom+xml, application/xml, text/xml, */*",
+			"Accept": "application/rss+xml, application/atom+xml, application/xml, text/xml, text/html, */*",
 			/* Node's fetch sends "Cache-Control: no-cache" and "Pragma: no-cache"
 			 * of its own accord, and Express's freshness check treats a request
 			 * saying no-cache as a refusal to be given a 304 - so a conditional
@@ -300,45 +342,131 @@ module.exports = NodeHelper.create({
 			 * is exactly what is wanted.
 			 *
 			 * Measured over the configured feeds: without this, only the CDN-
-			 * hosted ones revalidate; with it, five of eight answer 304 with no
-			 * body. It is also why the stock newsfeed module never gets one -
-			 * it sets no-cache, no-store, must-revalidate explicitly. */
+			 * hosted ones revalidate; with it, most answer 304 with no body. It
+			 * is also why the stock newsfeed module never gets one - it sets
+			 * no-cache, no-store, must-revalidate explicitly. */
 			"Cache-Control": "max-age=0",
 			"Pragma": "",
 		};
-		// Only send a validator when there is something cached to validate
-		// against: a 304 with no stored items would leave the ticker empty.
-		if (st.items && st.items.length) {
-			if (st.etag) headers["If-None-Match"] = st.etag;
-			if (st.lastModified) headers["If-Modified-Since"] = st.lastModified;
+		if (hasContent) {
+			if (store.etag) headers["If-None-Match"] = store.etag;
+			if (store.lastModified) headers["If-Modified-Since"] = store.lastModified;
 		}
 
-		var res = await fetch(feed.url, {
+		var res = await fetch(url, {
 			headers: headers,
 			redirect: "follow",
 			signal: AbortSignal.timeout(this.config.timeoutMs || 20000),
 		});
 
-		if (res.status === 304) {
+		if (res.status === 304) return { notModified: true, body: null };
+		if (!res.ok) throw new Error("HTTP " + res.status);
+		return { notModified: false, body: await res.text(), res: res };
+	},
+
+	fetchFeed: async function (feed) {
+		if (feed.type === "s2bluf") return this.fetchS2Bluf(feed);
+
+		var st = this.state[feed.url] || (this.state[feed.url] = { items: [] });
+		var got = await this.conditionalGet(feed.url, st, !!(st.items && st.items.length));
+
+		if (got.notModified) {
 			st.fetchedAt = Date.now();
 			return "304 not modified, " + st.items.length + " headlines held";
 		}
-		if (!res.ok) throw new Error("HTTP " + res.status);
 
-		var body = await res.text();
-		var items = parseFeed(body, feed.title, feed.maxItems || this.config.maxItemsPerFeed);
+		var items = parseFeed(got.body, feed.title, feed.maxItems || this.config.maxItemsPerFeed);
 		/* Nothing parsed means a redirect to an HTML page, a block page, or a
 		 * feed that changed shape. Treat it as a failure so the previous
 		 * headlines stay up, and do NOT store the validator - otherwise the
 		 * next poll gets a 304 for the junk and the feed is stuck on it. */
-		if (!items.length) throw new Error("no items parsed from " + body.length + " bytes");
+		if (!items.length) throw new Error("no items parsed from " + got.body.length + " bytes");
 
-		st.etag = res.headers.get("etag") || null;
-		st.lastModified = res.headers.get("last-modified") || null;
+		st.etag = got.res.headers.get("etag") || null;
+		st.lastModified = got.res.headers.get("last-modified") || null;
 		st.items = items;
 		st.fetchedAt = Date.now();
-		return items.length + " headlines, " + body.length + " bytes decoded" +
+		return items.length + " headlines, " + got.body.length + " bytes decoded" +
 			(st.etag || st.lastModified ? " (revalidatable)" : " (no validator offered)");
+	},
+
+	/**
+	 * S2 Underground's The Wire, which needs following one link further.
+	 *
+	 * Its feed is an index of videos: every title is just a date ("The Wire -
+	 * November 4, 2026") and the description is boilerplate, so putting the
+	 * feed itself on a ticker would show a date stamp and nothing else. The
+	 * actual brief lives on each report's own page, opening with S2's house
+	 * BLUF block - two or three sentences that are already exactly the length
+	 * and tone of a ticker headline.
+	 *
+	 * So: read the index, then fetch the few most recent report pages and lift
+	 * the BLUF out of each. Both steps revalidate, and the report pages are
+	 * cached by URL, so a day with no new report costs two 304s and nothing
+	 * else. Measured: index 1.4KB on the wire, a report page 16.6KB, both 304
+	 * thereafter.
+	 *
+	 * This reads someone else's HTML, so it is the most breakable thing here.
+	 * Every failure path keeps the previous headlines rather than falling back
+	 * to the bare dated titles, which would be worse than showing nothing.
+	 */
+	fetchS2Bluf: async function (feed) {
+		var st = this.state[feed.url] || (this.state[feed.url] = { items: [] });
+		if (!st.docs) st.docs = {};
+
+		var hasContent = !!(st.items && st.items.length);
+		var index = await this.conditionalGet(feed.url, st, hasContent);
+		if (index.notModified) {
+			st.fetchedAt = Date.now();
+			return "304 not modified, " + st.items.length + " wire lines held";
+		}
+
+		var reports = parseFeed(index.body, feed.title, feed.maxReports || 3)
+			.filter(function (r) { return r.link; });
+		if (!reports.length) throw new Error("no reports in the index (" + index.body.length + " bytes)");
+
+		var items = [];
+		var fetched = 0, reused = 0;
+		for (var i = 0; i < reports.length; i++) {
+			var report = reports[i];
+			var doc = st.docs[report.link] || (st.docs[report.link] = {});
+			try {
+				var page = await this.conditionalGet(report.link, doc,
+					!!(doc.lines && doc.lines.length));
+				if (page.notModified) {
+					reused++;
+				} else {
+					var lines = extractBluf(page.body);
+					if (!lines.length) throw new Error("no BLUF block found");
+					doc.lines = lines;
+					doc.etag = page.res.headers.get("etag") || null;
+					doc.lastModified = page.res.headers.get("last-modified") || null;
+					fetched++;
+				}
+			} catch (e) {
+				// One unreachable or reshaped report must not cost the others.
+				console.error("[MMM-Newswire] " + feed.title + " report " +
+					report.link + ": " + e.message);
+			}
+			(doc.lines || []).forEach(function (line) {
+				items.push({ source: feed.title, title: line, ts: report.ts, link: report.link });
+			});
+		}
+
+		if (!items.length) throw new Error("no BLUF text extracted from " + reports.length + " reports");
+
+		// Drop cached pages for reports that have dropped off the index, so
+		// this cannot grow for the life of the machine.
+		var live = Object.create(null);
+		reports.forEach(function (r) { live[r.link] = true; });
+		Object.keys(st.docs).forEach(function (url) { if (!live[url]) delete st.docs[url]; });
+
+		st.etag = index.res.headers.get("etag") || null;
+		st.lastModified = index.res.headers.get("last-modified") || null;
+		st.items = items.slice(0, feed.maxItems || this.config.maxItemsPerFeed);
+		st.fetchedAt = Date.now();
+		return st.items.length + " wire lines from " + reports.length + " reports (" +
+			fetched + " fetched, " + reused + " revalidated)";
 	},
 
 	/**
@@ -347,32 +475,65 @@ module.exports = NodeHelper.create({
 	 * Concatenating would give six ABC headlines in a row and then six from
 	 * Hacker News, which on a ticker reads as the mirror being stuck.
 	 */
+	/**
+	 * Interleave the feeds into the rotation, by weight.
+	 *
+	 * Concatenating would give six ABC headlines in a row and then six from
+	 * Hacker News, which on a ticker reads as the mirror being stuck. Plain
+	 * round-robin fixes that but gives every source equal airtime, and the
+	 * wire is meant to dominate.
+	 *
+	 * So: smooth weighted round-robin, the scheduler nginx uses. Each pass
+	 * every live feed accrues its weight, the feed most "owed" a turn takes
+	 * the slot and pays back the total. A feed of weight 4 among seven of
+	 * weight 1 therefore gets four slots in eleven, spread through the
+	 * rotation rather than clumped into a block of four.
+	 *
+	 * freshWeight/freshHours is the "especially if new" part: while a feed's
+	 * newest item is inside freshHours, the whole feed is promoted to the
+	 * higher weight, so the day a new wire report lands it takes over the bar
+	 * and then settles back.
+	 */
 	merged: function () {
-		var lists = (this.config.feeds || []).map(function (f) {
-			var st = this.state[f.url];
-			return (st && st.items) ? st.items : [];
-		}, this);
+		var self = this;
+		var now = Date.now();
+
+		var queues = (this.config.feeds || []).map(function (f) {
+			var st = self.state[f.url];
+			var items = (st && st.items) ? st.items : [];
+			var weight = Math.max(1, Number(f.weight) || 1);
+			if (f.freshWeight && f.freshHours && items.length && items[0].ts &&
+				(now - items[0].ts) <= f.freshHours * 3600000) {
+				weight = Math.max(weight, Number(f.freshWeight) || 0);
+			}
+			return { items: items, weight: weight, credit: 0, pos: 0 };
+		}).filter(function (q) { return q.items.length > 0; });
 
 		var out = [];
 		var cap = this.config.maxItems || 60;
-		/* Across feeds as well as within one. ABC News and ABC Business carry
-		 * the same lead story, and the round-robin puts them two apart - which
-		 * on the ticker reads as the mirror having frozen and repeated itself.
-		 * First occurrence wins, so config order decides which source is
-		 * credited. */
+		/* Deduped across feeds as well as within one. ABC News and ABC Business
+		 * carry the same lead story, and the interleave can put them two apart,
+		 * which reads as the mirror having frozen and repeated itself. First
+		 * occurrence wins, so config order decides which source is credited. */
 		var seen = Object.create(null);
-		for (var round = 0; out.length < cap; round++) {
-			var added = false;
-			for (var i = 0; i < lists.length && out.length < cap; i++) {
-				var item = lists[i][round];
-				if (!item) continue;
-				added = true;
-				var key = item.title.toLowerCase();
-				if (seen[key]) continue;
-				seen[key] = true;
-				out.push(item);
+
+		while (out.length < cap) {
+			var live = queues.filter(function (q) { return q.pos < q.items.length; });
+			if (!live.length) break;
+
+			var total = 0, best = null;
+			for (var i = 0; i < live.length; i++) {
+				live[i].credit += live[i].weight;
+				total += live[i].weight;
+				if (!best || live[i].credit > best.credit) best = live[i];
 			}
-			if (!added) break;
+			best.credit -= total;
+
+			var item = best.items[best.pos++];
+			var key = item.title.toLowerCase();
+			if (seen[key]) continue;
+			seen[key] = true;
+			out.push(item);
 		}
 		return out;
 	},

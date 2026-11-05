@@ -69,9 +69,21 @@ Module.register("MMM-Newswire", {
 		// presenting yesterday's news as current.
 		staleAfterHours: 12,
 
-		heightPx: 74,
-		fontSizePx: 26,
-		sourceFontSizePx: 15,
+		/* Sized by measurement, not taste. At 26px a quarter of the real
+		 * headlines already ran past the 1080px panel and were ellipsised; at
+		 * 32px on one line it would have been three quarters. Allowing two
+		 * lines buys the larger text without that cost - measured over a live
+		 * rotation, every headline fits in two lines at 32px, and 34px is the
+		 * first size where the longest one does not.
+		 *
+		 * Height follows: two lines at 32px plus breathing room. The band
+		 * above the ticker is empty space on this layout, so the taller bar
+		 * costs nothing. */
+		heightPx: 104,
+		fontSizePx: 32,
+		sourceFontSizePx: 18,
+		// The marquee ignores this: it scrolls, so it never has to truncate.
+		maxLines: 2,
 	},
 
 	getStyles: function () { return ["MMM-Newswire.css"]; },
@@ -193,6 +205,7 @@ Module.register("MMM-Newswire", {
 		wrapper.style.setProperty("--nw-font", this.config.fontSizePx + "px");
 		wrapper.style.setProperty("--nw-source-font", this.config.sourceFontSizePx + "px");
 		wrapper.style.setProperty("--nw-trans", this.config.transitionMs + "ms");
+		wrapper.style.setProperty("--nw-lines", String(this.config.maxLines));
 
 		if (!this.items.length) {
 			var msg = document.createElement("div");
