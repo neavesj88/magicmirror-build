@@ -1,0 +1,193 @@
+{
+ "items": [
+  {
+   "source": "ABC News",
+   "title": "Breaking: New wave of bomb threats hits passenger flights across Europe",
+   "ts": 1793871692000,
+   "link": "https://www.abc.net.au/news/2026-11-05/bomb-threat-diverts-planes-across-europe/107352984"
+  },
+  {
+   "source": "SBS News",
+   "title": "Meta touted its teen safety tool. What it didn't mention was that barely anyone was using it",
+   "ts": 1787709842000,
+   "link": "https://www.sbs.com.au/news/article/meta-touted-teen-safety-tool-barely-anyone-using-it/brm5k3tng"
+  },
+  {
+   "source": "MarketWatch",
+   "title": "‘My life could be cut short’: I’m 55, married with $4.3 million and have a brain tumor. Should I buy a $210,000 custom Porsche?",
+   "ts": 1793878200000,
+   "link": "https://www.marketwatch.com/story/my-life-could-be-cut-short-im-55-married-with-4-3-million-and-have-a-brain-tumor-should-i-buy-a-210-000-custom-porsche-ed825ada?mod=mw_rss_topstories"
+  },
+  {
+   "source": "Investing.com",
+   "title": "Deutsche Bank forecasts S&P 500 to hit 7000 by end of 2025",
+   "ts": 1732589255000,
+   "link": "https://www.investing.com/news/stock-market-news/deutsche-bank-forecasts-sp-500-to-hit-7000-by-end-of-2025-3741586"
+  },
+  {
+   "source": "RBA",
+   "title": "Statement by the Monetary Policy Board: Monetary Policy Decision",
+   "ts": 1793676600000,
+   "link": "https://www.rba.gov.au/media-releases/2026/mr-26-30.html"
+  },
+  {
+   "source": "Hacker News",
+   "title": "Awesome repositories are no longer awesome",
+   "ts": 1793877411000,
+   "link": "https://erikgahner.github.io/posts/2026/awesome-repositories-are-no-longer-awesome/"
+  },
+  {
+   "source": "ABC News",
+   "title": "Union pushes for mandatory sentences after alleged assault on Mount Isa police",
+   "ts": 1793868460000,
+   "link": "https://www.abc.net.au/news/2026-11-05/police-union-pushes-for-mandatory-jail-terms-alleged-assault/107348932"
+  },
+  {
+   "source": "SBS News",
+   "title": "The Queen of Country: Dolly Parton's life in pictures",
+   "ts": 1787703210000,
+   "link": "https://www.sbs.com.au/news/article/dolly-parton-life-in-pictures/oyicxx2mn"
+  },
+  {
+   "source": "ABC Business",
+   "title": "WA farmers say reported canola crop failures could cost millions",
+   "ts": 1793866958000,
+   "link": "https://www.abc.net.au/news/2026-11-05/popular-canola-varities-leading-to-crop-losses-western-australia/107295904"
+  },
+  {
+   "source": "MarketWatch",
+   "title": "Research firm declares ‘end of the AI trade as we know it’ — and Asian tech stocks reflect the shift",
+   "ts": 1793877720000,
+   "link": "https://www.marketwatch.com/story/research-firm-declares-end-of-the-ai-trade-as-we-know-it-and-asian-tech-stocks-reflect-the-shift-25ac8e8f?mod=mw_rss_topstories"
+  },
+  {
+   "source": "Investing.com",
+   "title": "Trump's tariffs, Fed minutes, Rumble's Bitcoin buy - what's moving markets",
+   "ts": 1732582517000,
+   "link": "https://www.investing.com/news/economy/trumps-tariffs-fed-minutes-rumbles-bitcoin-buy--whats-moving-markets-3741453"
+  },
+  {
+   "source": "Hacker News",
+   "title": "OpenSSH 10.6p2 has been released with a workaround for a critical vulnerability",
+   "ts": 1793871977000,
+   "link": "https://hachyderm.io/@damienmiller/117563026759098135"
+  },
+  {
+   "source": "ABC News",
+   "title": "Woman alleged to have stalked Greens senator appears in court",
+   "ts": 1793868099000,
+   "link": "https://www.abc.net.au/news/2026-11-05/jordon-steele-john-woman-charged-stalking-senator/107349262"
+  },
+  {
+   "source": "SBS News",
+   "title": "Trump threatens to rename Lake Ontario as Canada hits back at US tariffs",
+   "ts": 1787691166000,
+   "link": "https://www.sbs.com.au/news/article/trump-lake-america-ontario-canada-trade-war-tariffs/o7udweihr"
+  },
+  {
+   "source": "ABC Business",
+   "title": "Smart glasses present 'elevated risk' to patients, says NT Health",
+   "ts": 1793864241000,
+   "link": "https://www.abc.net.au/news/2026-11-05/nt-health-issues-ban-on-meta-glasses-after-privacy-breach-at-rdh/107349740"
+  },
+  {
+   "source": "MarketWatch",
+   "title": "A prolonged war in Iran is the market’s real ‘black swan,’ says this strategist",
+   "ts": 1793874000000,
+   "link": "https://www.marketwatch.com/story/a-prolonged-war-in-iran-is-the-markets-real-black-swan-says-this-strategist-65d105c7?mod=mw_rss_topstories"
+  },
+  {
+   "source": "Investing.com",
+   "title": "2025 macro outlook for the US is 'murky at best' says Deutsche Bank",
+   "ts": 1732580763000,
+   "link": "https://www.investing.com/news/economy/2025-macro-outlook-for-the-us-is-murky-at-best-says-deutsche-bank-3741435"
+  },
+  {
+   "source": "Hacker News",
+   "title": "Baidu released ERNIE 5.5 Flash Base",
+   "ts": 1793870952000,
+   "link": "https://ernie.baidu.com/release/ernie-5-5-flash-base/"
+  },
+  {
+   "source": "ABC News",
+   "title": "'Completely dead': How Trump himself 'killed' the MAGA movement",
+   "ts": 1793866974000,
+   "link": "https://www.abc.net.au/news/2026-11-05/trump-us-midterms-maga-marjorie-taylor-greene/107351240"
+  },
+  {
+   "source": "SBS News",
+   "title": "'You can't escape': A growing fight over what belongs in Australia's suburbs",
+   "ts": 1787640764000,
+   "link": "https://www.sbs.com.au/news/article/data-centre-rules-homes-schools-existing-residents/g0u6j2i43"
+  },
+  {
+   "source": "ABC Business",
+   "title": "Deputy governor concedes RBA is losing Australians' trust to manage inflation",
+   "ts": 1793862225000,
+   "link": "https://www.abc.net.au/news/2026-11-05/rba-andrew-hauser-trust-in-the-rba-is-deteriorating/107351696"
+  },
+  {
+   "source": "MarketWatch",
+   "title": "My 93-year-old father changed his will at the 11th hour, leaving my brother his entire $500,000 estate. Can I challenge it?",
+   "ts": 1793873700000,
+   "link": "https://www.marketwatch.com/story/my-93-year-old-father-changed-his-will-at-the-11th-hour-leaving-my-brother-his-entire-500-000-estate-can-i-challenge-it-ecfc63d2?mod=mw_rss_topstories"
+  },
+  {
+   "source": "Investing.com",
+   "title": "Bitcoin price today: slips to $94k as risk appetite sours on Trump tariff threat",
+   "ts": 1732573326000,
+   "link": "https://www.investing.com/news/cryptocurrency-news/bitcoin-price-today-slips-to-94k-as-risk-appetite-sours-on-trump-tariff-threat-3741330"
+  },
+  {
+   "source": "Hacker News",
+   "title": "Being a kid making games in the early 2000s",
+   "ts": 1793858033000,
+   "link": "https://jaytholen.net/teengamedev/"
+  },
+  {
+   "source": "SBS News",
+   "title": "'Extraordinarily expensive': Is this Australia's most controversial construction project?",
+   "ts": 1787639615000,
+   "link": "https://www.sbs.com.au/news/article/victorias-suburban-rail-loop-controversies-explainer/0josw8rl0"
+  },
+  {
+   "source": "ABC Business",
+   "title": "Former mining town's preschool again at risk of lead exposure",
+   "ts": 1793860363000,
+   "link": "https://www.abc.net.au/news/2026-11-05/captains-flat-nsw-preschool-exposure-to-lead/107348348"
+  },
+  {
+   "source": "MarketWatch",
+   "title": "Toyota’s stock rallies after the company lowered sales guidance. Here’s how rare that is.",
+   "ts": 1793873700000,
+   "link": "https://www.marketwatch.com/story/toyota-stock-rallies-after-company-lowered-sales-guidance-heres-how-rare-that-is-c3d6c9bf?mod=mw_rss_topstories"
+  },
+  {
+   "source": "Hacker News",
+   "title": "Altera Announces Agilex 2X, a Complete FPGA and SoC Portfolio",
+   "ts": 1793857634000,
+   "link": "https://www.altera.com/newsroom/agilex-2x"
+  },
+  {
+   "source": "ABC News",
+   "title": "Murder trial hears claims Frances Crawford wanted husband to leave RAAF",
+   "ts": 1793865619000,
+   "link": "https://www.abc.net.au/news/2026-11-05/frances-crawford-murder-trial/107348514"
+  },
+  {
+   "source": "SBS News",
+   "title": "Trump's visa crackdown plan could affect thousands seeking asylum in the US",
+   "ts": 1787619903000,
+   "link": "https://www.sbs.com.au/news/article/visa-crackdown-us-affect-seeking-asylum/bpyklwd1m"
+  },
+  {
+   "source": "Hacker News",
+   "title": "Lemmings CSS Animation",
+   "ts": 1793854450000,
+   "link": "https://markblah.github.io/lemmings/"
+  }
+ ],
+ "feedsConfigured": 7,
+ "feedsWithItems": 7,
+ "lastFetchAt": 1793879168488
+}
