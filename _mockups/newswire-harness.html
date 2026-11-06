@@ -58,6 +58,10 @@ function mount(label, overrides) {
 
   const inst = makeInstance(registry["MMM-Newswire"], overrides);
   inst.host = host;
+  // Exposed so the lifecycle can be poked from the console: suspend/resume,
+  // repeated starts, hide/show. That is where the nasty bugs live, and they
+  // cannot be reached through the rendered DOM alone.
+  (window.__instances = window.__instances || {})[label] = inst;
   inst.start();
   // Stand in for the node helper answering the config with the cached items.
   inst.socketNotificationReceived("NEWSWIRE_ITEMS", window.__payload);
@@ -79,7 +83,19 @@ function tick(now) {
   requestAnimationFrame(tick);
 }
 
+// Waits for load, because MMM-Newswire.js is a separate <script> below and on
+// a warm cache headlines.json can resolve before it has registered.
+window.addEventListener("load", () => {
 fetch("headlines.json").then((r) => r.json()).then((payload) => {
+  // headlines.json is a snapshot, and the module refuses to cycle anything
+  // older than dropAfterHours - so a fixture committed yesterday would show
+  // nothing but "Headlines unavailable". Roll its clocks forward to now so
+  // these cases exercise the animations; the staleness rules get their own
+  // case at the bottom, with the clocks deliberately left old.
+  const newest = Math.max(...payload.items.map((i) => i.ts || 0));
+  const shift = Date.now() - newest;
+  payload.items.forEach((i) => { if (i.ts) i.ts += shift; });
+  payload.lastFetchAt = payload.oldestFetchAt = payload.lastAttemptAt = Date.now();
   window.__payload = payload;
   const cases = [
     ["B — vertical roll (default)", { animation: "roll" }],
@@ -93,7 +109,9 @@ fetch("headlines.json").then((r) => r.json()).then((payload) => {
       // Same code path, but with an empty payload and a fetch already attempted.
       const m = mount(label, { animation: "roll" });
       m.inst.items = [];
-      m.inst.status = { feedsConfigured: 9, feedsWithItems: 0, lastFetchAt: Date.now() };
+      // lastAttemptAt without lastFetchAt is the real "tried and failed"
+      // state: a cold boot with no network never succeeds at anything.
+      m.inst.status = { feedsConfigured: 8, feedsWithItems: 0, lastFetchAt: null, lastAttemptAt: Date.now() };
       m.inst.updateDom();
       return;
     }
@@ -124,6 +142,29 @@ fetch("headlines.json").then((r) => r.json()).then((payload) => {
       window.__regression = ok ? "PASS" : "FAIL";
     }, 500);
   }, 1200);
+
+  /* Staleness, which is the other thing that must never go wrong unattended:
+   * old headlines must come OFF the bar rather than cycling as if current.
+   * Fed a payload whose last successful fetch is 13 hours ago - past
+   * dropAfterHours - the ticker has to refuse it. */
+  const stale = mount("Stale guard — last fetch 13 h ago", { animation: "roll" });
+  const old = Date.now() - 13 * 3600000;
+  stale.inst.items = [];
+  stale.inst.loaded = false;
+  stale.inst.socketNotificationReceived("NEWSWIRE_ITEMS", Object.assign({}, payload, {
+    items: payload.items.slice(0, 5).map((i) => Object.assign({}, i, { ts: old })),
+    lastFetchAt: old, oldestFetchAt: old, lastAttemptAt: Date.now(),
+  }));
+  setTimeout(() => {
+    const cycling = !!stale.inst.host.querySelector(".newswire-stage .newswire-item");
+    const says = (stale.inst.host.querySelector(".newswire-offline") || {}).textContent || "";
+    const ok = !cycling && /unavailable/i.test(says);
+    stale.fpsEl.textContent = ok ? "PASS — refused to cycle stale headlines"
+                                 : "FAIL — " + (cycling ? "still cycling" : "wrong message: " + says);
+    stale.fpsEl.style.color = ok ? "#6f6" : "#f66";
+    window.__staleGuard = ok ? "PASS" : "FAIL";
+  }, 900);
+});
 });
 </script>
 <script src="../modules/MMM-Newswire/MMM-Newswire.js"></script>

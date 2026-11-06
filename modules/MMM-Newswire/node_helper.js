@@ -312,6 +312,10 @@ module.exports = NodeHelper.create({
 			delay = Math.min((this.config.retryMs || 600000) * s.failures, interval);
 		}
 
+		// Recorded whether it worked or not, so the browser can tell "nothing
+		// has been tried yet" from "everything tried and failed".
+		(this.state[feed.url] || (this.state[feed.url] = { items: [] })).attemptedAt = Date.now();
+
 		this.broadcast();
 		await this.saveState();
 
@@ -501,6 +505,32 @@ module.exports = NodeHelper.create({
 		var queues = (this.config.feeds || []).map(function (f) {
 			var st = self.state[f.url];
 			var items = (st && st.items) ? st.items : [];
+
+			/* Nothing stale may keep cycling.
+			 *
+			 * Two separate ways a headline goes stale, and both have to be
+			 * caught. The item can simply be old - the RBA publishes a rate
+			 * decision every six weeks, and without this its last one would
+			 * roll round the bar for a month and a half as though it were
+			 * news. And the feed itself can go quiet: if the mirror loses its
+			 * network, the cached headlines are still here and would otherwise
+			 * cycle indefinitely behind a small "offline" marker.
+			 *
+			 * fetchedAt is set on a 304 as well as a 200, because a
+			 * revalidation is a successful refresh - it is proof the feed is
+			 * reachable and unchanged, not evidence of staleness. */
+			var dropMs = (Number(f.dropAfterHours) || Number(self.config.dropAfterHours) || 12) * 3600000;
+			if (st && st.fetchedAt && (now - st.fetchedAt) > dropMs) {
+				items = [];
+			} else {
+				var ageMs = (Number(f.maxItemAgeHours) || Number(self.config.maxItemAgeHours) || 48) * 3600000;
+				items = items.filter(function (i) {
+					// A dateless item cannot be aged on its own, so it rides on
+					// the feed's freshness check above instead.
+					return !i.ts || (now - i.ts) <= ageMs;
+				});
+			}
+
 			var weight = Math.max(1, Number(f.weight) || 1);
 			if (f.freshWeight && f.freshHours && items.length && items[0].ts &&
 				(now - items[0].ts) <= f.freshHours * 3600000) {
@@ -541,18 +571,41 @@ module.exports = NodeHelper.create({
 	broadcast: function () {
 		if (!this.config) return;
 		var feeds = this.config.feeds || [];
-		var ok = 0, newest = 0;
+		var items = this.merged();
+
+		/* Which sources are actually on the bar right now. merged() has
+		 * already dropped feeds that are too stale to show, so this is the
+		 * set whose freshness the browser should be judging. */
+		var showing = Object.create(null);
+		items.forEach(function (i) { showing[i.source] = true; });
+
+		var ok = 0, newest = 0, oldest = 0, attempted = 0;
 		feeds.forEach(function (f) {
 			var st = this.state[f.url];
-			if (st && st.items && st.items.length) ok++;
-			if (st && st.fetchedAt > newest) newest = st.fetchedAt;
+			if (!st) return;
+			if (st.items && st.items.length) ok++;
+			if (st.attemptedAt > attempted) attempted = st.attemptedAt;
+			if (st.fetchedAt > newest) newest = st.fetchedAt;
+			/* Oldest among the feeds still contributing, NOT across all of
+			 * them. Reporting only the newest let one healthy feed hold the
+			 * staleness clock open while every other source on the bar was
+			 * hours or days behind. */
+			if (showing[f.title] && st.fetchedAt && (!oldest || st.fetchedAt < oldest)) {
+				oldest = st.fetchedAt;
+			}
 		}, this);
 
 		this.sendSocketNotification("NEWSWIRE_ITEMS", {
-			items: this.merged(),
+			items: items,
 			feedsConfigured: feeds.length,
 			feedsWithItems: ok,
 			lastFetchAt: newest || null,
+			// Staleness is judged on this one.
+			oldestFetchAt: oldest || null,
+			/* Distinct from lastFetchAt, which only moves on success. Without
+			 * it a cold boot with no network stayed on "Fetching headlines"
+			 * for ever, because nothing had ever succeeded. */
+			lastAttemptAt: attempted || null,
 		});
 	},
 });

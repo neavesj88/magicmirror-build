@@ -427,8 +427,34 @@ update_repo() {
     local dir="$1" label="$2" before after
     cd "$dir" 2>/dev/null || { log "  $label: missing, skipped"; return 0; }
     before=$(git rev-parse HEAD 2>/dev/null) || { log "  $label: not a git repo, skipped"; return 0; }
+
+    # npm rewrites package-lock.json during install - a newer npm strips the
+    # "libc" entries an older one wrote, for instance - which leaves the tree
+    # dirty and makes --ff-only refuse. Nothing retries, so the module is
+    # frozen from then on: MMM-Remote-Control sat nine commits behind this way
+    # for weeks while the log said "skipped" once a night and nothing else.
+    # The lockfile is generated, so discard that churn. Anything else dirty is
+    # a real edit and is still left alone.
+    if ! git diff --quiet 2>/dev/null; then
+        local dirty other
+        dirty=$(git diff --name-only)
+        other=$(printf '%s\n' "$dirty" | grep -vx -e 'package-lock.json' -e 'npm-shrinkwrap.json')
+        if [ -z "$other" ]; then
+            log "  $label: discarding generated lockfile churn"
+            printf '%s\n' "$dirty" | while IFS= read -r f; do
+                [ -n "$f" ] && git checkout -- "$f" >> "$LOG" 2>&1
+            done
+        fi
+    fi
+
     if ! git pull --ff-only >> "$LOG" 2>&1; then
-        log "  $label: pull failed (local edits or diverged), skipped"
+        # Say why, and say that it will not fix itself. The old message was a
+        # single quiet "skipped" that hid a permanently stuck module.
+        local ahead dirtynow
+        ahead=$(git rev-list --count '@{u}..HEAD' 2>/dev/null || echo "?")
+        dirtynow=$(git status --porcelain 2>/dev/null | head -5 | tr '\n' ' ')
+        log "  $label: pull FAILED and will keep failing until someone looks" \
+            "- $ahead local commit(s); dirty: ${dirtynow:-none}"
         return 0
     fi
     after=$(git rev-parse HEAD)

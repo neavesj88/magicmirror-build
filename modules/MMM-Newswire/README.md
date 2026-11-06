@@ -39,7 +39,9 @@ sits still sinks into the glass.
 | `retryMs` | `10 min` | First retry after a failure; steps back toward `reloadInterval` |
 | `showSource` | `true` | The small uppercase source label |
 | `showAge` | `false` | Adds "2h", "35m" after the headline |
-| `staleAfterHours` | `12` | After this with no successful fetch, the bar says `offline` |
+| `staleAfterHours` | `5` | After this with no successful fetch, the bar says `offline` but keeps its headlines |
+| `dropAfterHours` | `12` | After this, the headlines are removed entirely. Overridable per feed |
+| `maxItemAgeHours` | `48` | A headline older than this is retired however healthy its feed. Overridable per feed |
 | `fontSizePx` | `32` | Headline size |
 | `sourceFontSizePx` | `18` | Source label size |
 | `heightPx` | `104` | Height of the bar |
@@ -188,6 +190,35 @@ well inside 250 ms, which is why Hacker News was the only one that failed.
 `net.setDefaultAutoSelectFamilyAttemptTimeout()`. That is process-global, so
 it affects other modules' requests too — acceptable, since it only applies
 once an address family has already failed.
+
+## Nothing stale keeps cycling
+
+A headline goes stale two different ways, and both are caught.
+
+**The item is simply old.** The RBA publishes a rate decision every six weeks;
+without `maxItemAgeHours` its last one would roll round the bar for a month
+and a half as though it were news. Anything past 48 hours is retired even if
+its feed is perfectly healthy. The Wire overrides this to 96 hours, because it
+is a daily series and three reports span three days — for today's brief only,
+set `maxReports: 1` rather than cutting the age.
+
+**The feed has gone quiet.** If the mirror loses its network the cached
+headlines are still in memory, and would otherwise cycle forever behind a
+small "offline" marker. So staleness runs in two stages:
+
+| Since the last successful refresh | What the bar does |
+| --- | --- |
+| under 5 h | normal |
+| 5–12 h (`staleAfterHours`) | keeps the headlines, shows an `offline` marker |
+| over 12 h (`dropAfterHours`) | headlines removed; "Headlines unavailable – retrying" |
+
+A 304 counts as a successful refresh — it is proof the feed is reachable and
+unchanged, not evidence of staleness.
+
+The browser checks this on every headline change as well, not just when it
+renders. The page runs for weeks without a reload, so if the node helper ever
+stopped talking to it, the bar would otherwise cycle a dead set of headlines
+for as long as the panel stayed on.
 
 ## Behaviour when things break
 
