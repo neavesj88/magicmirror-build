@@ -175,8 +175,13 @@
 }
 
 /* Marks the headlines as old rather than hiding the fact. Deliberately small:
- * it is a footnote to the ticker, not an alarm. */
+ * it is a footnote to the ticker, not an alarm.
+ *
+ * Always in the DOM and toggled by class, because it has to be able to appear
+ * and clear without getDom running - on this mirror the page can be up for
+ * weeks at a time. */
 .newswire-stale {
+	display: none;
 	position: absolute;
 	right: 10px;
 	bottom: 2px;
@@ -185,3 +190,4 @@
 	text-transform: uppercase;
 	opacity: 0.3;
 }
+.newswire-stale.nw-on { display: block; }

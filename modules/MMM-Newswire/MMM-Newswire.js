@@ -65,9 +65,20 @@ Module.register("MMM-Newswire", {
 
 		showSource: true,
 		showAge: false,
-		// Past this with no successful fetch, the ticker says so rather than
-		// presenting yesterday's news as current.
-		staleAfterHours: 12,
+
+		/* Staleness, in two stages. At staleAfterHours - one missed refresh -
+		 * the bar admits it is offline but keeps showing what it has. At
+		 * dropAfterHours - three missed refreshes - the headlines are removed
+		 * altogether and the bar says so, because old news cycling silently is
+		 * worse than an empty bar.
+		 *
+		 * maxItemAgeHours retires individual headlines regardless of how
+		 * healthy their feed is: the RBA publishes a rate decision every six
+		 * weeks, and without this its last one would roll round the bar for a
+		 * month and a half. Both are overridable per feed. */
+		staleAfterHours: 5,
+		dropAfterHours: 12,
+		maxItemAgeHours: 48,
 
 		/* Sized by measurement, not taste. At 26px a quarter of the real
 		 * headlines already ran past the 1080px panel and were ellipsised; at
@@ -99,6 +110,11 @@ Module.register("MMM-Newswire", {
 		this.readyTimer = null;
 		this.marqueeAnim = null;
 		this.cleanupTimers = [];
+		/* A plain interval, deliberately not a setTimeout chain: there is no
+		 * link to break, so the offline marker keeps being re-evaluated for as
+		 * long as the page lives. */
+		this.staleTimer = setInterval(this.refreshStale.bind(this), 5 * 60 * 1000);
+		this.staleMarker = null;
 		this.sendSocketNotification("NEWSWIRE_CONFIG", this.config);
 		console.log("[MMM-Newswire] started, animation: " + this.config.animation);
 	},
@@ -107,6 +123,7 @@ Module.register("MMM-Newswire", {
 		if (notification !== "NEWSWIRE_ITEMS") return;
 		this.items = payload.items || [];
 		this.status = payload;
+		this.refreshStale();
 
 		if (!this.loaded) {
 			this.loaded = true;
@@ -148,13 +165,56 @@ Module.register("MMM-Newswire", {
 		if (this.marqueeAnim) { this.marqueeAnim.onfinish = null; this.marqueeAnim.cancel(); this.marqueeAnim = null; }
 		this.cleanupTimers.forEach(clearTimeout);
 		this.cleanupTimers = [];
+		/* Take the headline off the stage, not just the timers.
+		 *
+		 * Dropping only the reference left the visible headline in the DOM,
+		 * and the next one was drawn on top of it - both absolutely positioned
+		 * in the same place. One stranded node per hide/show, printed over
+		 * each other, for as long as the page lives. */
+		if (this.stage) this.stage.textContent = "";
 		this.current = null;
 	},
 
-	/** True once no successful fetch has landed for staleAfterHours. */
+	/**
+	 * True once the oldest source still on the bar is past staleAfterHours.
+	 *
+	 * Judged on oldestFetchAt rather than the newest: reporting only the
+	 * newest let a single healthy feed - Hacker News, say - hold the clock
+	 * open while every other source on the bar was hours behind.
+	 */
 	isStale: function () {
+		var at = this.status.oldestFetchAt || this.status.lastFetchAt;
+		if (!at) return false;
+		return (Date.now() - at) > this.config.staleAfterHours * 3600000;
+	},
+
+	/**
+	 * Show or hide the offline marker.
+	 *
+	 * It used to be decided once, inside getDom. getDom only reruns when the
+	 * headlines appear or disappear entirely, and this page runs for weeks
+	 * between restarts, so in practice the marker never appeared while the
+	 * mirror was running and never cleared once it had. Now the node is
+	 * always present and only its visibility changes.
+	 */
+	refreshStale: function () {
+		if (!this.staleMarker) return;
+		this.staleMarker.classList.toggle("nw-on", this.isStale());
+	},
+
+	/**
+	 * True once nothing has refreshed for dropAfterHours, at which point the
+	 * headlines must come off the bar entirely.
+	 *
+	 * The helper already drops them at the same threshold, so normally this
+	 * never fires - its job is the case where the helper has stopped talking
+	 * to the browser altogether. The page runs for weeks without a reload, and
+	 * without this check it would happily cycle a dead set of headlines for as
+	 * long as the panel stayed on.
+	 */
+	isDead: function () {
 		if (!this.status.lastFetchAt) return false;
-		return (Date.now() - this.status.lastFetchAt) > this.config.staleAfterHours * 3600000;
+		return (Date.now() - this.status.lastFetchAt) > this.config.dropAfterHours * 3600000;
 	},
 
 	relativeAge: function (ts) {
@@ -210,10 +270,12 @@ Module.register("MMM-Newswire", {
 		if (!this.items.length) {
 			var msg = document.createElement("div");
 			msg.className = "newswire-offline";
-			if (!this.status.lastFetchAt) {
-				msg.textContent = this.status.feedsConfigured
-					? "Fetching headlines…"
-					: "No feeds configured";
+			if (!this.status.feedsConfigured) {
+				msg.textContent = "No feeds configured";
+			} else if (!this.status.lastAttemptAt) {
+				// Nothing has even been tried yet - the helper is still
+				// staggering its first round of fetches.
+				msg.textContent = "Fetching headlines…";
 			} else {
 				// Fetches have run and produced nothing: no connection, or every
 				// feed is refusing. It retries on its own, so say so plainly
@@ -229,12 +291,14 @@ Module.register("MMM-Newswire", {
 		wrapper.appendChild(stage);
 		this.stage = stage;
 
-		if (this.isStale()) {
-			var stale = document.createElement("div");
-			stale.className = "newswire-stale";
-			stale.textContent = "offline";
-			wrapper.appendChild(stale);
-		}
+		// Always present, shown or hidden by refreshStale, so its state can
+		// change without getDom having to run again.
+		var stale = document.createElement("div");
+		stale.className = "newswire-stale";
+		stale.textContent = "offline";
+		wrapper.appendChild(stale);
+		this.staleMarker = stale;
+		this.refreshStale();
 
 		this.startCycleWhenReady();
 		return wrapper;
@@ -252,7 +316,10 @@ Module.register("MMM-Newswire", {
 		if (this.readyTimer) { clearTimeout(this.readyTimer); this.readyTimer = null; }
 		if (!this.stage) return;
 
-		var wide = this.stage.isConnected && this.stage.getBoundingClientRect().width > 0;
+		// offsetWidth, not a client rect: the whole page is rotated 90 degrees
+		// for the portrait panel, and getBoundingClientRect reports the
+		// rotated box - it gives the bar's height where its width is wanted.
+		var wide = this.stage.isConnected && this.stage.offsetWidth > 0;
 		// Roll, fade and wipe do not need a measurement, so they only wait for
 		// attachment; the marquee needs a real width.
 		if (wide || (attempt > 20 && this.config.animation !== "marquee")) {
@@ -272,6 +339,16 @@ Module.register("MMM-Newswire", {
 
 	startCycle: function () {
 		if (!this.stage || !this.items.length) return;
+		/* Stop whatever is already running first.
+		 *
+		 * Only getDom used to do this, so anything else that restarted the
+		 * cycle - resume(), or a broadcast arriving while nothing was tracked
+		 * as running - started a SECOND chain. showNext then overwrote
+		 * this.holdTimer, orphaning the first one's handle, and nothing could
+		 * ever cancel it again: the headline rate doubled and no suspend,
+		 * getDom or stopCycle could bring it back. MagicMirror calls resume()
+		 * on every show(), so a single hide/show was enough. */
+		this.stopCycle();
 		if (this.config.animation === "marquee") this.runMarquee();
 		else this.showNext();
 	},
@@ -279,6 +356,9 @@ Module.register("MMM-Newswire", {
 	/** Advance one headline, for roll/fade/wipe. */
 	showNext: function () {
 		if (!this.stage || !this.items.length) return;
+		// Checked on every change rather than once at render, so a ticker that
+		// has been running for days cannot outlive its data.
+		if (this.isDead()) { this.items = []; this.updateDom(1000); return; }
 
 		var item = this.items[this.index % this.items.length];
 		var el = this.renderItem(item);
@@ -301,7 +381,13 @@ Module.register("MMM-Newswire", {
 		}
 
 		this.index = (this.index + 1) % this.items.length;
-		this.holdTimer = setTimeout(this.showNext.bind(this), Math.max(1000, this.config.holdMs));
+		// Cleared as it fires, so isCycling() cannot report a chain that has
+		// already finished and leave the ticker unable to restart.
+		var self = this;
+		this.holdTimer = setTimeout(function () {
+			self.holdTimer = null;
+			self.showNext();
+		}, Math.max(1000, this.config.holdMs));
 	},
 
 	/**
@@ -314,6 +400,7 @@ Module.register("MMM-Newswire", {
 	 */
 	runMarquee: function () {
 		if (!this.stage || !this.items.length) return;
+		if (this.isDead()) { this.items = []; this.updateDom(1000); return; }
 
 		var count = Math.min(Math.max(1, this.config.marqueeItems), this.items.length);
 		var strip = document.createElement("div");
@@ -331,7 +418,14 @@ Module.register("MMM-Newswire", {
 		this.stage.textContent = "";
 		this.stage.appendChild(strip);
 
-		var stageW = this.stage.getBoundingClientRect().width || window.innerWidth;
+		/* offsetWidth is the layout width and is unaffected by the page
+		 * rotation. getBoundingClientRect returns the ROTATED box, so on the
+		 * mirror it reported 104 - the height of the bar - where 1080 was
+		 * wanted. The crawl then started barely off the right edge instead of
+		 * a full screen out, and its duration came from the wrong distance.
+		 * Measured on the live unit: rect.width 104, offsetWidth 928. */
+		var stageW = this.stage.offsetWidth ||
+			this.stage.getBoundingClientRect().width || window.innerWidth;
 		var stripW = strip.scrollWidth;
 		var duration = ((stageW + stripW) / Math.max(10, this.config.marqueeSpeed)) * 1000;
 

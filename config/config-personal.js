@@ -127,6 +127,12 @@ let config = {
 						weight: 4,
 						freshWeight: 7,
 						freshHours: 30,
+						/* Longer than the 48h default on purpose: The Wire is a
+						 * daily series, and three reports span three days, so
+						 * the default would quietly drop the oldest one. For
+						 * today's brief only, set maxReports to 1 rather than
+						 * cutting this. */
+						maxItemAgeHours: 96,
 					},
 					{ title: "ABC News", url: "https://www.abc.net.au/news/feed/51120/rss.xml", maxItems: 6 },
 					{ title: "SBS News", url: "https://www.sbs.com.au/news/feed", maxItems: 6 },
