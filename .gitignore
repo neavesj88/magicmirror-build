@@ -4,3 +4,5 @@ node_modules/
 
 # screenshots pulled off the mirror for reference
 mirror-*.png
+# Claude Code local permissions can capture secrets from approved commands
+**/.claude/settings.local.json
