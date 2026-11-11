@@ -398,6 +398,14 @@ ROLLBACK=""
 FORCE=0
 [ "${1:-}" = "--force" ] && FORCE=1
 
+# cron starts this with a bare environment, and without these two systemctl
+# --user cannot find the session bus: the restart and the health check both
+# fail, and the run "rolls back" a mirror that was never down. It went unseen
+# from 21 Oct to 11 Nov 2026 because every cron run until then had nothing to
+# restart. The desktop icon and SSH already have both set; this only fills gaps.
+export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+export DBUS_SESSION_BUS_ADDRESS="${DBUS_SESSION_BUS_ADDRESS:-unix:path=$XDG_RUNTIME_DIR/bus}"
+
 # Summary lines go to the terminal as well as the log, so the desktop icon
 # shows something useful. Command output stays in the log only.
 log() { echo "$*" | tee -a "$LOG"; }

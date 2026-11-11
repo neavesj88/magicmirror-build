@@ -4,5 +4,7 @@ node_modules/
 
 # screenshots pulled off the mirror for reference
 mirror-*.png
+# The printed cheat sheet carries the device login; it lives outside the repo
+docs/cheatsheet*
 # Claude Code local permissions can capture secrets from approved commands
 **/.claude/settings.local.json

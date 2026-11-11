@@ -137,8 +137,10 @@ modules/
   MMM-Newswire/            # Low-bandwidth news ticker (see its README)
 docs/
   blog-post.md             # Project blog post
-  cheatsheet.pdf           # Printed A4 reference card
 ```
+
+The printed reference card holds the device login, so it is kept off this
+public repo and lives on the owner's machine instead.
 
 `config/` and `modules/` are the source of truth — edit them here, re-run script 02
 on the mirror to deploy. The scripts no longer carry duplicate copies inline.
