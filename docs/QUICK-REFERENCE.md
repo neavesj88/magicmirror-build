@@ -68,6 +68,19 @@ tail -5 ~/mm-update.log
 
 The last line should say "nothing to update" or "mirror healthy". "needs a human" means the run failed.
 
+## Overnight screen-off
+
+From **23:00 to 05:00** the display board is switched off, because an LCD's
+backlight shows through the mirror as a grey box even when the page is black.
+It's checked every 5 min, so a reboot in the night goes dark again within minutes.
+
+| To | Do |
+|---|---|
+| Change the hours, or turn it off | Edit `OFF_AT`, `ON_AT` or `NIGHT_OFF` in the repo's `config/display.conf`, push, then update |
+| Wake it now | `~/mm-display.sh on`. At night it stays on until 05:00, then the normal schedule carries on |
+| Turn it off now | `~/mm-display.sh off`. In the day it stays off until `on`; at night it still wakes at 05:00 |
+| Check | `~/mm-display.sh status`, log in `~/mm-display.log` |
+
 ## Changing the config
 
 > **Edit in the repo, not on the mirror.** Each update copies `config/config-guest.js`
@@ -148,8 +161,8 @@ From a terminal: `~/mm-wifi.sh "SSID" "password"`. Run it with no arguments to l
 
 | Problem | Fix |
 |---|---|
-| Black screen | Open `:8080` from another machine. If it loads, the fault is the display, not MagicMirror. If it doesn't, run `systemctl --user status magicmirror`, then restart it |
-| Screen dim | The PC sends full brightness, so the dimming is on the display's driver board. Use the board's own Menu buttons. If it's already at max, the backlight is failing |
+| Black screen | Between 23:00 and 05:00 that's the screen-off; `~/mm-display.sh on` wakes it. Otherwise open `:8080` from another machine. If it loads, the fault is the display, not MagicMirror. If it doesn't, run `systemctl --user status magicmirror`, then restart it |
+| Screen dim | Software and the board are already at full (`ddcutil getvcp 10` reads 100/100). What's left is the panel itself behind the acrylic: try `ddcutil setvcp 12 75` (contrast; 50 is default), or a brighter panel |
 | Config won't load | `node --run config:check` in `~/MagicMirror` |
 | Module missing | Check its block is in the **repo's** `config-guest.js` and was pushed, then run Update Mirror |
 | "Headlines unavailable" | No feed has refreshed for 12 h, usually because there's no internet. Check the WiFi portal at `:8081` |

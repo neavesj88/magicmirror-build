@@ -106,4 +106,26 @@ fi
 cp "$REPO_DIR/config/custom.css" "$MMDIR/css/custom.css"
 ok "custom.css installed (portrait rotation)"
 
+# ════════════════════════════════════════════════════════════════════════════
+divider "OVERNIGHT SCREEN-OFF"
+# ════════════════════════════════════════════════════════════════════════════
+
+# Installed from here rather than script 01 so the nightly update keeps it
+# current: script 01 never runs again once the box is built.
+install -m 755 "$REPO_DIR/scripts/mm-display.sh" "$HOME/mm-display.sh"
+mkdir -p "$HOME/.config"
+cp "$REPO_DIR/config/display.conf" "$HOME/.config/mm-display.conf"
+ok "mm-display.sh and its schedule installed"
+
+# Only rewritten when the line differs, so the nightly run doesn't churn it.
+# The `|| true` matters: with pipefail, a grep -v that filters out every line
+# fails, and the crontab would be replaced with an empty one.
+CRON_DISPLAY="*/5 * * * * $HOME/mm-display.sh auto >/dev/null 2>&1"
+if crontab -l 2>/dev/null | grep -qxF "$CRON_DISPLAY"; then
+    skip "Screen-off cron already present"
+else
+    { crontab -l 2>/dev/null | grep -vF "mm-display.sh" || true; echo "$CRON_DISPLAY"; } | crontab -
+    ok "Screen-off cron installed (checks every 5 min)"
+fi
+
 divider "MODULES COMPLETE — Run 03-portal-install.sh next"

@@ -28,7 +28,9 @@ divider "PHASE 1: PACKAGES"
 info "Updating apt..."
 sudo apt-get update -qq
 
-PACKAGES=(weston net-tools x11-xserver-utils xdotool unclutter evtest openssh-server)
+# ddcutil drives the display board over DDC/CI: mm-display.sh uses it to power
+# the panel down overnight, since an LCD backlight glows through the mirror.
+PACKAGES=(weston net-tools x11-xserver-utils xdotool unclutter evtest openssh-server ddcutil)
 MISSING=()
 for pkg in "${PACKAGES[@]}"; do
     dpkg -l "$pkg" 2>/dev/null | grep -q "^ii" || MISSING+=("$pkg")
@@ -59,6 +61,12 @@ EOF
 else
     skip "/sbin PATH already configured"
 fi
+
+# i2c-dev exposes the DDC bus as /dev/i2c-*. ddcutil's udev rule already gives
+# the logged-in user access; the i2c group keeps cron working without a session.
+[ -f /etc/modules-load.d/i2c-dev.conf ] || { echo i2c-dev | sudo tee /etc/modules-load.d/i2c-dev.conf > /dev/null; ok "i2c-dev loads at boot"; }
+sudo modprobe i2c-dev
+if getent group i2c > /dev/null && ! id -nG mirror | grep -qw i2c; then sudo usermod -aG i2c mirror; ok "Added mirror to i2c group"; fi
 
 grep -qF '/sbin:/usr/sbin' "$HOME/.bashrc" || echo 'export PATH="$PATH:/sbin:/usr/sbin"' >> "$HOME/.bashrc"
 export PATH="$PATH:/sbin:/usr/sbin"
@@ -624,8 +632,11 @@ ok "Utility scripts created"
 # corrects the schedule instead of leaving a stale one behind.
 # Redirected because log() also writes to stdout now, and cron would otherwise
 # try to mail every run.
+# `|| true` because with pipefail a grep -v that filters out every line (a
+# crontab holding only this entry) fails, the subshell dies before the echo,
+# and the crontab is replaced with an empty one.
 CRON_LINE="0 3 * * * $HOME/mm-update.sh >/dev/null 2>&1"
-( crontab -l 2>/dev/null | grep -vF "mm-update.sh"; echo "$CRON_LINE" ) | crontab -
+{ crontab -l 2>/dev/null | grep -vF "mm-update.sh" || true; echo "$CRON_LINE"; } | crontab -
 ok "Update cron installed (daily 03:00)"
 
 divider "SYSTEM SETUP COMPLETE — Run 02-modules-install.sh next"

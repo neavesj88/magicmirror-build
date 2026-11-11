@@ -72,8 +72,19 @@ Complete build scripts and config for a MagicMirror² smart mirror kiosk.
 ~/mm-wifi.sh "SSID" "pass"   # change WiFi
 ~/mm-update.sh               # pull this repo + MM² + modules, restart if changed
 ~/mm-update.sh --force       # redeploy configs/modules even if nothing is new
+~/mm-display.sh off|on|status  # display board power, over DDC/CI
 systemctl --user restart magicmirror  # restart
 ```
+
+### Overnight screen-off
+
+An LCD backlight lights the whole panel, so even a pure-black page shows through
+two-way acrylic as a grey rectangle. From 23:00 to 05:00 `mm-display.sh` puts the
+display board into standby over DDC/CI (`ddcutil setvcp D6 04`), leaving a clean
+mirror. Cron checks every 5 minutes rather than firing once, so a reboot or power
+cut in the night is put right. The morning only wakes a panel the schedule turned
+off, never one switched off some other way. Hours and an on/off switch live in
+`config/display.conf`.
 
 ### Updating
 
@@ -125,7 +136,9 @@ scripts/
   01-system-setup.sh       # Packages, SSH, autologin, kiosk, debloat, fast boot
   02-modules-install.sh    # Installs modules + configs from this repo
   03-portal-install.sh     # WiFi config portal + hotspot watchdog
+  mm-display.sh            # Overnight screen-off; installed by script 02
 config/
+  display.conf             # Screen-off hours (23:00–05:00) and on/off switch
   config-guest.js          # Guest profile — always reinstalled by script 02
   config-personal.js       # Personal profile seed — copied only if absent on device
   custom.css               # Portrait rotation CSS
