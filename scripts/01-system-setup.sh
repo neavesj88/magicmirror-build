@@ -303,6 +303,12 @@ if [ -z "$FIREFOX_BIN" ]; then
     FIREFOX_BIN=$(which firefox-esr)
 fi
 
+# A PDF viewer, so the cheat sheet on the desktop opens with a double-click for
+# whoever is standing at the mirror. The sheet itself is copied on by hand and
+# never committed, since it holds the login.
+command -v atril >/dev/null 2>&1 || sudo apt-get install -y atril
+xdg-mime default atril.desktop application/pdf
+
 cat > ~/Desktop/Firefox.desktop << EOF
 [Desktop Entry]
 Type=Application
