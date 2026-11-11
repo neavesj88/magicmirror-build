@@ -101,7 +101,7 @@ A Chromecast can display the MagicMirror page on any TV or monitor without a sec
 
 ```bash
 pip install catt
-catt -d "Living Room TV" cast_site http://192.168.20.86:8080/
+catt -d "<chromecast-name>" cast_site http://<mirror-ip>:8080/
 ```
 
 Add to a startup script so it casts on boot. Downside: if the cast drops, it needs to be re-initiated.

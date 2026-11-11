@@ -1,19 +1,19 @@
 # MagicMirror² quick reference
 
-The everyday card for a mirror built from this repo. The printed copy at the
-device also carries its login and network details. Those never go in this file.
-Where you see `<mirror-ip>`, use the address your router gave the mirror
-(`mirror.local` also works on most home networks).
+The everyday card for a mirror built from this repo. Anything in `<angle brackets>`
+is specific to your own unit. Fill those in on your printed copy, and never in
+this file.
 
 ## Logins and addresses
 
 | | |
 |---|---|
 | Username | `mirror` |
-| Password (sudo) | set when the OS was installed; not stored here |
-| Hostname | `mirror.local` |
-| SSH | key login: `ssh mirror@mirror.local` |
-| Setup hotspot | `MirrorSetup`, default password `mirror123` (change `HOTSPOT_PASS` in `scripts/03-portal-install.sh`) |
+| Password (sudo) | `<sudo-password>` |
+| Hostname / IP | `mirror.local` · `<mirror-ip>` |
+| SSH | `ssh -i <path-to-ssh-key> mirror@<mirror-ip>` |
+| House WiFi | `<home-wifi-ssid>` |
+| Setup hotspot | `MirrorSetup` · `<hotspot-password>` (default `mirror123`, set by `HOTSPOT_PASS` in `scripts/03-portal-install.sh`) |
 
 | Address | What it is |
 |---|---|
@@ -134,10 +134,10 @@ sudo shutdown now    # no password needed
 
 ## WiFi and moving house
 
-A watchdog checks the WiFi every 30 s. If the mirror can't reach its saved network,
+A watchdog checks the WiFi every 30 s. If the mirror can't reach `<home-wifi-ssid>`,
 it starts its own hotspot:
 
-1. On your phone, join **MirrorSetup**.
+1. On your phone, join **MirrorSetup** with `<hotspot-password>`.
 2. Browse to `http://192.168.4.1:8081`.
 3. Enter the new network and password (and a static IP if you want one).
 4. The mirror joins it. While the hotspot is up, it also retries the saved WiFi every 5 min, so a router outage clears by itself.
