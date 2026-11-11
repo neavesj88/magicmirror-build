@@ -76,7 +76,8 @@ It's checked every 5 min, so a reboot in the night goes dark again within minute
 
 | To | Do |
 |---|---|
-| Change the hours, or turn it off | Edit `OFF_AT`, `ON_AT` or `NIGHT_OFF` in the repo's `config/display.conf`, push, then update |
+| Change the hours, or turn it off | Double-click **Screen-off Times** on the desktop. That's saved on the mirror and updates won't undo it; picking 23:00 / 05:00 / On again goes back to the repo's times |
+| Change the repo default | `OFF_AT`, `ON_AT`, `NIGHT_OFF` in `config/display.conf`, push, then update |
 | Wake it now | `~/mm-display.sh on`. At night it stays on until 05:00, then the normal schedule carries on |
 | Turn it off now | `~/mm-display.sh off`. In the day it stays off until `on`; at night it still wakes at 05:00 |
 | Check | `~/mm-display.sh status`, log in `~/mm-display.log` |
@@ -129,6 +130,7 @@ are updated every night with the rest. Put its config block in the repo's
 | **Stop Mirror** | Closes MagicMirror and brings back the XFCE desktop |
 | **Start Mirror** | Starts it again, fullscreen |
 | **Update Mirror** | Runs the update now and shows the result |
+| **Screen-off Times** | Change when the screen switches off overnight, or turn that off |
 | **Cheat sheet PDF** | The printed card, if one has been copied to `~/Desktop`. It opens in Atril on top of the running mirror. Rotate it 90° first (PDF page rotation), because the desktop isn't turned for the portrait panel |
 | **Terminal**, **Firefox** | As named |
 

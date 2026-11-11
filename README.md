@@ -83,8 +83,11 @@ two-way acrylic as a grey rectangle. From 23:00 to 05:00 `mm-display.sh` puts th
 display board into standby over DDC/CI (`ddcutil setvcp D6 04`), leaving a clean
 mirror. Cron checks every 5 minutes rather than firing once, so a reboot or power
 cut in the night is put right. The morning only wakes a panel the schedule turned
-off, never one switched off some other way. Hours and an on/off switch live in
-`config/display.conf`.
+off, never one switched off some other way. The default hours and an on/off
+switch live in `config/display.conf`. The **Screen-off Times** desktop icon
+changes them on the mirror itself; that choice is saved to
+`~/.config/mm-display.local.conf`, which wins over the repo and which updates
+never touch.
 
 ### Updating
 
@@ -137,6 +140,7 @@ scripts/
   02-modules-install.sh    # Installs modules + configs from this repo
   03-portal-install.sh     # WiFi config portal + hotspot watchdog
   mm-display.sh            # Overnight screen-off; installed by script 02
+  mm-display-settings.sh   # Screen-off Times desktop icon (zenity form)
 config/
   display.conf             # Screen-off hours (23:00–05:00) and on/off switch
   config-guest.js          # Guest profile — always reinstalled by script 02

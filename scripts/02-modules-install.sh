@@ -113,9 +113,32 @@ divider "OVERNIGHT SCREEN-OFF"
 # Installed from here rather than script 01 so the nightly update keeps it
 # current: script 01 never runs again once the box is built.
 install -m 755 "$REPO_DIR/scripts/mm-display.sh" "$HOME/mm-display.sh"
+install -m 755 "$REPO_DIR/scripts/mm-display-settings.sh" "$HOME/mm-display-settings.sh"
 mkdir -p "$HOME/.config"
+# The repo defaults only. Times set from the desktop icon live in
+# mm-display.local.conf, which is never written here.
 cp "$REPO_DIR/config/display.conf" "$HOME/.config/mm-display.conf"
 ok "mm-display.sh and its schedule installed"
+
+# Desktop icon for changing the times on the mirror. Written only when it
+# differs: XFCE trusts a launcher by its checksum, so rewriting identical
+# content keeps it trusted, and gio needs the session bus (the updater sets it).
+ICON="$HOME/Desktop/Screen-off-Times.desktop"
+ICON_NEW=$(cat << EOF
+[Desktop Entry]
+Type=Application
+Name=Screen-off Times
+Icon=preferences-desktop-screensaver
+Exec=$HOME/mm-display-settings.sh
+Terminal=false
+EOF
+)
+if [ -d "$HOME/Desktop" ] && [ "$(cat "$ICON" 2>/dev/null)" != "$ICON_NEW" ]; then
+    printf '%s\n' "$ICON_NEW" > "$ICON"
+    chmod +x "$ICON"
+    gio set "$ICON" metadata::xfce-exe-checksum "$(sha256sum "$ICON" | cut -d' ' -f1)" 2>/dev/null || true
+    ok "Screen-off Times desktop icon installed"
+fi
 
 # Only rewritten when the line differs, so the nightly run doesn't churn it.
 # The `|| true` matters: with pipefail, a grep -v that filters out every line

@@ -10,15 +10,20 @@
 #   mm-display.sh off|on   by hand
 #   mm-display.sh status   current power state and schedule
 #
-# The hours live in ~/.config/mm-display.conf, deployed from the repo's
-# config/display.conf - edit them there, not on the device.
+# The default hours are the repo's config/display.conf, deployed to
+# ~/.config/mm-display.conf. The "Screen-off Times" desktop icon writes
+# ~/.config/mm-display.local.conf, read last so it wins, and never touched by
+# the update.
 
 NIGHT_OFF=1
 OFF_AT="23:00"
 ON_AT="05:00"
 CONF="$HOME/.config/mm-display.conf"
+LOCAL="$HOME/.config/mm-display.local.conf"
 # shellcheck source=/dev/null
 [ -f "$CONF" ] && . "$CONF"
+# shellcheck source=/dev/null
+[ -f "$LOCAL" ] && . "$LOCAL"
 
 # Present only while the schedule is what turned the panel off, so the morning
 # undoes its own work and never a deliberate off made some other way (by hand
@@ -90,6 +95,7 @@ case "${1:-}" in
             *)    echo "Panel: off (standby)" ;;
         esac
         if [ "$NIGHT_OFF" = "1" ]; then echo "Night off: $OFF_AT to $ON_AT"; else echo "Night off: disabled"; fi
+        if [ -f "$LOCAL" ]; then echo "Times set on the mirror ($LOCAL)"; else echo "Times from the repo"; fi
         ;;
     *) echo "Usage: $0 auto|on|off|status" >&2; exit 2 ;;
 esac
