@@ -81,6 +81,7 @@ It's checked every 5 min, so a reboot in the night goes dark again within minute
 | Wake it now | `~/mm-display.sh on`. At night it stays on until 05:00, then the normal schedule carries on |
 | Turn it off now | `~/mm-display.sh off`. In the day it stays off until `on`; at night it still wakes at 05:00 |
 | Check | `~/mm-display.sh status`, log in `~/mm-display.log` |
+| Picture (brightness, contrast, colour gain) | `BRIGHTNESS`, `CONTRAST`, `GAIN` in `config/display.conf`. Held there every 5 min while the screen is on, so a setting the board forgets after a power cut is put back. A `ddcutil setvcp` by hand gets reverted to these |
 
 ## Changing the config
 
@@ -164,7 +165,7 @@ From a terminal: `~/mm-wifi.sh "SSID" "password"`. Run it with no arguments to l
 | Problem | Fix |
 |---|---|
 | Black screen | Between 23:00 and 05:00 that's the screen-off; `~/mm-display.sh on` wakes it. Otherwise open `:8080` from another machine. If it loads, the fault is the display, not MagicMirror. If it doesn't, run `systemctl --user status magicmirror`, then restart it |
-| Screen dim | Software and the board are already at full (`ddcutil getvcp 10` reads 100/100). What's left is the panel itself behind the acrylic: try `ddcutil setvcp 12 75` (contrast; 50 is default), or a brighter panel |
+| Screen dim | Brightness is held at 100 and contrast at 75 (`config/display.conf`). Beyond that it's the panel behind the acrylic: try `GAIN`, or a brighter panel |
 | Config won't load | `node --run config:check` in `~/MagicMirror` |
 | Module missing | Check its block is in the **repo's** `config-guest.js` and was pushed, then run Update Mirror |
 | "Headlines unavailable" | No feed has refreshed for 12 h, usually because there's no internet. Check the WiFi portal at `:8081` |

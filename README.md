@@ -89,6 +89,11 @@ changes them on the mirror itself; that choice is saved to
 `~/.config/mm-display.local.conf`, which wins over the repo and which updates
 never touch.
 
+The same config holds the board's picture settings (`BRIGHTNESS=100`,
+`CONTRAST=75`, optional `GAIN`). A value set over DDC can be forgotten when the
+board loses power, so while the panel is on the 5-minute check puts any drift
+back and logs it.
+
 ### Updating
 
 The mirror pulls; nothing is pushed to it. There is no route in from outside, so
